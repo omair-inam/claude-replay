@@ -18,7 +18,6 @@ const options = {
   speed: { type: "string", default: "1" },
   "no-thinking": { type: "boolean", default: false },
   "no-tool-calls": { type: "boolean", default: false },
-  "no-tool-results": { type: "boolean", default: false },
   theme: { type: "string", default: "tokyo-night" },
   "theme-file": { type: "string" },
   "list-themes": { type: "boolean", default: false },
@@ -51,7 +50,6 @@ Options:
   --speed N               Initial playback speed (default: 1.0)
   --no-thinking           Hide thinking blocks by default
   --no-tool-calls         Hide tool call blocks by default
-  --no-tool-results       Hide tool results by default
   --no-redact             Disable secret redaction in output
   --theme NAME            Built-in theme (default: tokyo-night)
   --theme-file FILE       Custom theme JSON file (overrides --theme)
@@ -137,7 +135,6 @@ const html = render(turns, {
   speed,
   showThinking: !values["no-thinking"],
   showToolCalls: !values["no-tool-calls"],
-  showToolResults: !values["no-tool-results"],
   theme,
   redactSecrets: !values["no-redact"],
   userLabel: values["user-label"],

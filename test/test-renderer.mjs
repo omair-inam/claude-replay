@@ -44,7 +44,6 @@ describe("render", () => {
 
   it("sets initial speed", () => {
     const html = render(SAMPLE_TURNS, { speed: 2.5 });
-    assert.match(html, /value="2\.5"/);
     assert.match(html, /2\.5x/);
   });
 
@@ -65,6 +64,5 @@ describe("render", () => {
     assert.doesNotMatch(html, /\/\*TURNS_JSON\*\//);
     assert.doesNotMatch(html, /\/\*CHECKED_THINKING\*\//);
     assert.doesNotMatch(html, /\/\*CHECKED_TOOLS\*\//);
-    assert.doesNotMatch(html, /\/\*CHECKED_RESULTS\*\//);
   });
 });

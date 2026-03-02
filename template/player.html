@@ -15,6 +15,8 @@ body {
   font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
   font-size: 13px;
   line-height: 1.6;
+  -webkit-text-size-adjust: 100%;
+  touch-action: manipulation;
 }
 
 .container {
@@ -30,10 +32,10 @@ body {
   z-index: 100;
   background: var(--bg-surface);
   border-bottom: 1px solid var(--border);
-  padding: 8px 16px;
+  padding: 8px 12px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px 12px;
   flex-wrap: wrap;
 }
 
@@ -42,18 +44,19 @@ body {
   color: var(--text);
   border: 1px solid var(--border);
   border-radius: 4px;
-  padding: 4px 12px;
+  padding: 4px 10px;
   font-family: inherit;
   font-size: 12px;
   cursor: pointer;
   transition: background 0.15s;
+  flex-shrink: 0;
 }
 .controls button:hover { background: var(--border); }
 .controls button.active { background: var(--accent-dim); border-color: var(--accent); }
 
 .progress-wrap {
   flex: 1;
-  min-width: 120px;
+  min-width: 80px;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -83,29 +86,53 @@ body {
 .speed-control {
   display: flex;
   align-items: center;
-  gap: 4px;
   font-size: 11px;
-  color: var(--text-dim);
 }
-.speed-control input[type="range"] {
-  width: 60px;
-  accent-color: var(--accent);
+.speed-control button {
+  min-width: 44px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 
-.toggle-group {
-  display: flex;
-  gap: 6px;
-  font-size: 11px;
+.filter-wrap {
+  position: relative;
 }
-.toggle-group label {
+.filter-popover {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  z-index: 200;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  min-width: 140px;
+}
+.filter-wrap.open .filter-popover { display: block; }
+.filter-popover label {
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 6px;
   color: var(--text-dim);
   cursor: pointer;
   user-select: none;
+  font-size: 12px;
+  padding: 4px 0;
+  white-space: nowrap;
 }
-.toggle-group input[type="checkbox"] { accent-color: var(--accent); }
+.filter-popover label:hover { color: var(--text); }
+.filter-popover input[type="checkbox"] { accent-color: var(--accent); }
+
+.controls-secondary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
 
 /* Transcript area */
 .transcript {
@@ -119,7 +146,6 @@ body {
   opacity: 0;
   transform: translateY(8px);
   transition: opacity 0.4s, transform 0.3s;
-  scroll-margin-top: 52px;
 }
 .turn.visible {
   opacity: 0.35;
@@ -415,14 +441,15 @@ body {
   font-size: 11px;
 }
 .search-group input[type="text"] {
-  width: 140px;
+  width: 110px;
+  min-width: 70px;
   background: var(--bg);
   color: var(--text);
   border: 1px solid var(--border);
   border-radius: 4px;
   padding: 4px 8px;
   font-family: inherit;
-  font-size: 12px;
+  font-size: 16px;
   outline: none;
 }
 .search-group input[type="text"]:focus {
@@ -431,10 +458,9 @@ body {
 .search-count {
   color: var(--text-dim);
   white-space: nowrap;
-  min-width: 40px;
 }
 .search-group button {
-  padding: 4px 8px;
+  padding: 4px 6px;
   font-size: 11px;
 }
 mark.search-highlight {
@@ -444,6 +470,40 @@ mark.search-highlight {
 }
 mark.search-highlight.active {
   background: var(--accent);
+}
+
+/* Mobile: larger touch targets, prevent iOS zoom */
+@media (max-width: 600px) {
+  .controls {
+    padding: 6px 8px;
+    gap: 6px 8px;
+  }
+  .controls button {
+    min-height: 40px;
+    min-width: 40px;
+    padding: 6px 10px;
+    font-size: 14px;
+  }
+  .search-group input[type="text"] {
+    height: 40px;
+    width: 120px;
+    min-width: 80px;
+    padding: 6px 10px;
+  }
+  .filter-popover label {
+    font-size: 14px;
+    padding: 6px 0;
+  }
+  .filter-popover input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+  }
+  .controls-secondary {
+    gap: 10px;
+  }
+  .search-count {
+    font-size: 13px;
+  }
 }
 
 /* Scrollbar */
@@ -465,21 +525,23 @@ mark.search-highlight.active {
       </div>
       <span class="progress-text" id="progress-text">0 / 0</span>
     </div>
-    <div class="speed-control">
-      <span>Speed</span>
-      <input type="range" id="speed-slider" min="0.5" max="5" step="0.5" value="/*INITIAL_SPEED*/">
-      <span id="speed-label">/*INITIAL_SPEED*/x</span>
-    </div>
-    <div class="toggle-group">
-      <label><input type="checkbox" id="toggle-thinking" /*CHECKED_THINKING*/> Thinking</label>
-      <label><input type="checkbox" id="toggle-tools" /*CHECKED_TOOLS*/> Tools</label>
-      <label><input type="checkbox" id="toggle-results" /*CHECKED_RESULTS*/> Results</label>
-    </div>
-    <div class="search-group">
-      <input type="text" id="search-input" placeholder="Search...">
-      <span class="search-count" id="search-count">0 of 0</span>
-      <button id="search-prev" title="Previous match">&uarr;</button>
-      <button id="search-next" title="Next match">&darr;</button>
+    <div class="controls-secondary">
+      <div class="speed-control">
+        <button id="speed-btn" title="Cycle speed">/*INITIAL_SPEED*/x</button>
+      </div>
+      <div class="filter-wrap" id="filter-wrap">
+        <button id="filter-btn" title="Filter content"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M1 2.5A.5.5 0 0 1 1.5 2h13a.5.5 0 0 1 .4.8L10 8.7V13.5a.5.5 0 0 1-.7.5l-2.5-1.2a.5.5 0 0 1-.3-.5V8.7L1.1 2.8A.5.5 0 0 1 1 2.5z"/></svg></button>
+        <div class="filter-popover">
+          <label><input type="checkbox" id="toggle-thinking" /*CHECKED_THINKING*/> Thinking</label>
+          <label><input type="checkbox" id="toggle-tools" /*CHECKED_TOOLS*/> Tools</label>
+        </div>
+      </div>
+      <div class="search-group">
+        <input type="text" id="search-input" placeholder="Search...">
+        <span class="search-count" id="search-count">0 of 0</span>
+        <button id="search-prev" title="Previous match">&uarr;</button>
+        <button id="search-next" title="Next match">&darr;</button>
+      </div>
     </div>
   </div>
   <div class="transcript" id="transcript"></div>
@@ -505,11 +567,10 @@ mark.search-highlight.active {
   const progressFill = $("#progress-fill");
   const progressText = $("#progress-text");
   const progressBar = $("#progress-bar");
-  const speedSlider = $("#speed-slider");
-  const speedLabel = $("#speed-label");
+  const speedBtn = $("#speed-btn");
+  const SPEED_STEPS = [0.5, 1, 1.5, 2];
   const toggleThinking = $("#toggle-thinking");
   const toggleTools = $("#toggle-tools");
-  const toggleResults = $("#toggle-results");
 
   function escapeHtml(text) {
     const div = document.createElement("div");
@@ -701,7 +762,8 @@ mark.search-highlight.active {
     progressText.textContent = currentTurn + " / " + total;
   }
 
-  const CONTROLS_HEIGHT = 52;
+  const controlsEl = $(".controls");
+  function getControlsHeight() { return controlsEl.offsetHeight; }
   const PEEK_OFFSET = 20; // px of previous dimmed turn visible above
 
   function scrollToTurn(el) {
@@ -709,7 +771,7 @@ mark.search-highlight.active {
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         const absTop = el.getBoundingClientRect().top + window.scrollY;
-        const targetY = absTop - CONTROLS_HEIGHT - PEEK_OFFSET;
+        const targetY = absTop - getControlsHeight() - PEEK_OFFSET;
         window.scrollTo({ top: Math.max(0, targetY), behavior: "smooth" });
       });
     });
@@ -835,14 +897,14 @@ mark.search-highlight.active {
     requestAnimationFrame(() => {
       if (!playing) return;
       const rect = el.getBoundingClientRect();
-      const viewH = window.innerHeight - CONTROLS_HEIGHT;
+      const viewH = window.innerHeight - getControlsHeight();
       const overflow = rect.height - viewH;
 
       if (overflow > 50) {
         // Tall turn: first pause at top, then scroll to bottom, then advance
         const pauseTop = 800 / speed;
         const scrollDuration = Math.min(Math.max(overflow / speed * 3, 1500 / speed), 8000 / speed);
-        const targetY = el.offsetTop - CONTROLS_HEIGHT + el.offsetHeight - viewH;
+        const targetY = el.offsetTop - getControlsHeight() + el.offsetHeight - viewH;
 
         playTimer = setTimeout(() => {
           if (!playing) return;
@@ -869,7 +931,6 @@ mark.search-highlight.active {
   function applyVisibility() {
     const showThinking = toggleThinking.checked;
     const showTools = toggleTools.checked;
-    const showResults = toggleResults.checked;
 
     for (const el of $$('[data-type="thinking"]')) {
       el.style.display = showThinking ? "" : "none";
@@ -877,19 +938,30 @@ mark.search-highlight.active {
     for (const el of $$('[data-type="tool"]')) {
       el.style.display = showTools ? "" : "none";
     }
-    for (const el of $$('[data-type="result"]')) {
-      el.style.display = showResults ? "" : "none";
-    }
   }
+
+  // Filter popover
+  const filterWrap = $("#filter-wrap");
+  const filterBtn = $("#filter-btn");
+  filterBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    filterWrap.classList.toggle("open");
+  });
+  document.addEventListener("click", (e) => {
+    if (!filterWrap.contains(e.target)) {
+      filterWrap.classList.remove("open");
+    }
+  });
 
   // Event listeners
   btnPlay.addEventListener("click", () => playing ? stopPlay() : startPlay());
   btnNext.addEventListener("click", stepForward);
   btnPrev.addEventListener("click", stepBack);
 
-  speedSlider.addEventListener("input", () => {
-    speed = parseFloat(speedSlider.value);
-    speedLabel.textContent = speed + "x";
+  speedBtn.addEventListener("click", () => {
+    const idx = SPEED_STEPS.indexOf(speed);
+    speed = SPEED_STEPS[(idx + 1) % SPEED_STEPS.length];
+    speedBtn.textContent = speed + "x";
   });
 
   progressBar.addEventListener("click", (e) => {
@@ -904,7 +976,6 @@ mark.search-highlight.active {
 
   toggleThinking.addEventListener("change", applyVisibility);
   toggleTools.addEventListener("change", applyVisibility);
-  toggleResults.addEventListener("change", applyVisibility);
 
   // Click on a turn to make it active
   transcript.addEventListener("click", (e) => {
@@ -993,7 +1064,17 @@ mark.search-highlight.active {
       node = node.parentNode;
     }
 
-    mark.scrollIntoView({ behavior: "smooth", block: "center" });
+    // Scroll so the match is visible below the sticky controls bar
+    const markRect = mark.getBoundingClientRect();
+    const barH = getControlsHeight();
+    const viewH = window.innerHeight;
+    const visibleTop = barH;
+    const visibleBottom = viewH;
+    // If mark is outside the visible region, scroll it to ~1/3 down
+    if (markRect.top < visibleTop || markRect.bottom > visibleBottom) {
+      const targetY = markRect.top + window.scrollY - barH - (viewH - barH) / 3;
+      window.scrollTo({ top: Math.max(0, targetY), behavior: "smooth" });
+    }
     updateSearchCount();
   }
 
