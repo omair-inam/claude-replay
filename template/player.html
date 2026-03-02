@@ -407,6 +407,45 @@ body {
 }
 @keyframes blink { 50% { opacity: 0; } }
 
+/* Search */
+.search-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+.search-group input[type="text"] {
+  width: 140px;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-family: inherit;
+  font-size: 12px;
+  outline: none;
+}
+.search-group input[type="text"]:focus {
+  border-color: var(--accent);
+}
+.search-count {
+  color: var(--text-dim);
+  white-space: nowrap;
+  min-width: 40px;
+}
+.search-group button {
+  padding: 4px 8px;
+  font-size: 11px;
+}
+mark.search-highlight {
+  background: var(--orange);
+  color: var(--bg);
+  border-radius: 2px;
+}
+mark.search-highlight.active {
+  background: var(--accent);
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -435,6 +474,12 @@ body {
       <label><input type="checkbox" id="toggle-thinking" /*CHECKED_THINKING*/> Thinking</label>
       <label><input type="checkbox" id="toggle-tools" /*CHECKED_TOOLS*/> Tools</label>
       <label><input type="checkbox" id="toggle-results" /*CHECKED_RESULTS*/> Results</label>
+    </div>
+    <div class="search-group">
+      <input type="text" id="search-input" placeholder="Search...">
+      <span class="search-count" id="search-count">0 of 0</span>
+      <button id="search-prev" title="Previous match">&uarr;</button>
+      <button id="search-next" title="Next match">&darr;</button>
     </div>
   </div>
   <div class="transcript" id="transcript"></div>
@@ -861,12 +906,194 @@ body {
   toggleTools.addEventListener("change", applyVisibility);
   toggleResults.addEventListener("change", applyVisibility);
 
+  // Click on a turn to make it active
+  transcript.addEventListener("click", (e) => {
+    const turn = e.target.closest(".turn");
+    if (!turn) return;
+    const idx = parseInt(turn.dataset.index, 10);
+    setActiveTurn(idx - 1);
+    currentTurn = idx;
+    updateProgress();
+  });
+
   // Keyboard shortcuts
   document.addEventListener("keydown", (e) => {
     if (e.target.tagName === "INPUT") return;
     if (e.key === " " || e.key === "k") { e.preventDefault(); playing ? stopPlay() : startPlay(); }
     if (e.key === "ArrowRight" || e.key === "l") { e.preventDefault(); stepForward(); }
     if (e.key === "ArrowLeft" || e.key === "h") { e.preventDefault(); stepBack(); }
+  });
+
+  // --- Search ---
+  const searchInput = $("#search-input");
+  const searchCount = $("#search-count");
+  const searchPrevBtn = $("#search-prev");
+  const searchNextBtn = $("#search-next");
+
+  let searchMatches = [];
+  let currentMatch = -1;
+  let searchDebounce = null;
+  let allTurnsRendered = false;
+
+  function clearHighlights() {
+    for (const m of document.querySelectorAll("mark.search-highlight")) {
+      const parent = m.parentNode;
+      parent.replaceChild(document.createTextNode(m.textContent), m);
+      parent.normalize();
+    }
+    searchMatches = [];
+    currentMatch = -1;
+  }
+
+  function updateSearchCount() {
+    if (searchMatches.length === 0) {
+      searchCount.textContent = "0 of 0";
+    } else {
+      searchCount.textContent = (currentMatch + 1) + " of " + searchMatches.length;
+    }
+  }
+
+  function goToMatch(index) {
+    if (searchMatches.length === 0) return;
+    // Remove active from previous
+    if (currentMatch >= 0 && currentMatch < searchMatches.length) {
+      searchMatches[currentMatch].classList.remove("active");
+    }
+    currentMatch = ((index % searchMatches.length) + searchMatches.length) % searchMatches.length;
+    const mark = searchMatches[currentMatch];
+    mark.classList.add("active");
+
+    // Expand any collapsed ancestors
+    let node = mark;
+    while (node && node !== document.body) {
+      if (node.classList) {
+        // Expand collapsed turns
+        if (node.classList.contains("turn") && node.classList.contains("collapsed")) {
+          node.classList.remove("collapsed");
+        }
+        // Expand tool blocks
+        if (node.classList.contains("tool-block") && !node.classList.contains("open")) {
+          node.classList.add("open");
+        }
+        // Expand tool groups
+        if (node.classList.contains("tool-group") && !node.classList.contains("open")) {
+          node.classList.add("open");
+        }
+        // Expand thinking blocks
+        if (node.classList.contains("thinking-block") && !node.classList.contains("open")) {
+          node.classList.add("open");
+        }
+        // Expand collapsed collapsible-wraps
+        if (node.classList.contains("collapsible-wrap") && node.classList.contains("is-collapsed")) {
+          node.classList.remove("is-collapsed");
+          const btn = node.querySelector(".collapsible-toggle");
+          if (btn) btn.textContent = "Show less";
+        }
+      }
+      node = node.parentNode;
+    }
+
+    mark.scrollIntoView({ behavior: "smooth", block: "center" });
+    updateSearchCount();
+  }
+
+  function performSearch(query) {
+    clearHighlights();
+    if (!query) {
+      updateSearchCount();
+      return;
+    }
+
+    // Ensure all turns are rendered
+    if (!allTurnsRendered) {
+      showUpTo(TURNS.length);
+      allTurnsRendered = true;
+    }
+
+    const containers = document.querySelectorAll(".user-text, .assistant-text, .tool-input, .tool-result, .thinking-body");
+    const queryLower = query.toLowerCase();
+
+    for (const container of containers) {
+      const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null);
+      const textNodes = [];
+      let n;
+      while ((n = walker.nextNode())) textNodes.push(n);
+
+      for (const textNode of textNodes) {
+        const text = textNode.textContent;
+        const textLower = text.toLowerCase();
+        let startIdx = 0;
+        const indices = [];
+        while (true) {
+          const pos = textLower.indexOf(queryLower, startIdx);
+          if (pos === -1) break;
+          indices.push(pos);
+          startIdx = pos + queryLower.length;
+        }
+        if (indices.length === 0) continue;
+
+        // Split text node and wrap matches
+        const frag = document.createDocumentFragment();
+        let lastEnd = 0;
+        for (const pos of indices) {
+          if (pos > lastEnd) {
+            frag.appendChild(document.createTextNode(text.slice(lastEnd, pos)));
+          }
+          const mark = document.createElement("mark");
+          mark.className = "search-highlight";
+          mark.textContent = text.slice(pos, pos + query.length);
+          frag.appendChild(mark);
+          searchMatches.push(mark);
+          lastEnd = pos + query.length;
+        }
+        if (lastEnd < text.length) {
+          frag.appendChild(document.createTextNode(text.slice(lastEnd)));
+        }
+        textNode.parentNode.replaceChild(frag, textNode);
+      }
+    }
+
+    if (searchMatches.length > 0) {
+      goToMatch(0);
+    } else {
+      updateSearchCount();
+    }
+  }
+
+  searchInput.addEventListener("input", () => {
+    clearTimeout(searchDebounce);
+    searchDebounce = setTimeout(() => performSearch(searchInput.value.trim()), 200);
+  });
+
+  searchNextBtn.addEventListener("click", () => {
+    if (searchMatches.length > 0) goToMatch(currentMatch + 1);
+  });
+
+  searchPrevBtn.addEventListener("click", () => {
+    if (searchMatches.length > 0) goToMatch(currentMatch - 1);
+  });
+
+  searchInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (searchMatches.length > 0) {
+        goToMatch(e.shiftKey ? currentMatch - 1 : currentMatch + 1);
+      }
+    }
+    if (e.key === "Escape") {
+      searchInput.value = "";
+      performSearch("");
+      searchInput.blur();
+    }
+  });
+
+  // Ctrl+F / Cmd+F focuses search input
+  document.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "f") {
+      e.preventDefault();
+      searchInput.focus();
+      searchInput.select();
+    }
   });
 
   // Init
