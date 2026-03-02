@@ -190,6 +190,8 @@ body.in-iframe .controls-secondary { display: none; }
   z-index: 200;
   box-shadow: 0 4px 12px rgba(0,0,0,0.3);
   min-width: 180px;
+  max-height: 40vh;
+  overflow-y: auto;
 }
 .more-wrap.open .more-popover { display: block; }
 .more-popover label {
@@ -246,10 +248,12 @@ body.in-iframe .controls-secondary { display: none; }
   #more-btn { display: inline-flex; }
   .controls-secondary { display: none; }
   .progress-text { display: none; }
+  .chapter-wrap { display: none !important; }
 }
 body.in-iframe .controls-secondary { display: none; }
 body.in-iframe #more-btn { display: inline-flex; }
 body.in-iframe .progress-text { display: none; }
+body.in-iframe .chapter-wrap { display: none !important; }
 
 /* Transcript area */
 .transcript {
@@ -629,9 +633,10 @@ mark.search-highlight.active {
   pointer-events: none;
   z-index: 2;
   opacity: 0.3;
-  transition: opacity 0.3s;
+  transition: opacity 0.3s, transform 0.15s;
 }
-.bookmark-dot.reached { opacity: 1; }
+.bookmark-dot.reached { opacity: 0.6; }
+.bookmark-dot.active { opacity: 1; transform: translate(-50%, -50%) scale(1.4); }
 
 /* Bookmark divider in transcript */
 .bookmark-divider {
@@ -716,7 +721,7 @@ mark.search-highlight.active {
         <div class="chapter-menu" id="chapter-menu"></div>
       </div>
       <div class="more-wrap" id="more-wrap">
-        <button id="more-btn" title="More" style="background:none;border:none;font-size:20px;padding:4px 4px;line-height:1">&#x22EE;</button>
+        <button id="more-btn" title="More" style="background:none;border:none;font-size:22px;font-weight:bold;padding:4px 4px;line-height:1;vertical-align:middle">&#x22EE;</button>
         <div class="more-popover" id="more-popover">
           <div class="more-row">
             <span class="more-row-label">Speed</span>
@@ -728,6 +733,10 @@ mark.search-highlight.active {
           <hr class="more-divider">
           <input type="text" class="more-search" id="search-input2" placeholder="Search...">
           <span class="search-count" id="search-count2"></span>
+          <div id="more-chapters" style="display:none">
+            <hr class="more-divider">
+            <div id="more-chapter-list"></div>
+          </div>
         </div>
       </div>
       <div class="controls-secondary">
@@ -970,11 +979,16 @@ mark.search-highlight.active {
     const pct = total ? (currentTurn / total) * 100 : 0;
     progressFill.style.width = pct + "%";
     progressText.textContent = currentTurn + " / " + total;
-    // Update bookmark dot opacity
+    // Update bookmark dot states
+    let activeDot = null;
     for (const dot of progressBar.querySelectorAll(".bookmark-dot")) {
       const turn = parseInt(dot.dataset.turn, 10);
-      dot.classList.toggle("reached", turn <= currentTurn);
+      const reached = turn <= currentTurn;
+      dot.classList.toggle("reached", reached);
+      dot.classList.remove("active");
+      if (reached) activeDot = dot;
     }
+    if (activeDot) activeDot.classList.add("active");
   }
 
   const controlsEl = $(".controls");
@@ -1553,7 +1567,11 @@ mark.search-highlight.active {
       progressBar.appendChild(dot);
     }
 
-    // Chapter menu items
+    // Chapter menu items (desktop dropdown + more-popover)
+    const moreChapters = $("#more-chapters");
+    const moreChapterList = $("#more-chapter-list");
+    moreChapters.style.display = "";
+
     for (const bm of BOOKMARKS) {
       const item = document.createElement("div");
       item.className = "chapter-item";
@@ -1563,6 +1581,16 @@ mark.search-highlight.active {
         chapterWrap.classList.remove("open");
       });
       chapterMenu.appendChild(item);
+
+      // Duplicate for more-popover
+      const item2 = document.createElement("div");
+      item2.className = "chapter-item";
+      item2.innerHTML = item.innerHTML;
+      item2.addEventListener("click", () => {
+        showUpTo(bm.turn);
+        moreWrap.classList.remove("open");
+      });
+      moreChapterList.appendChild(item2);
     }
 
     chapterBtn.addEventListener("click", (e) => {
@@ -1575,6 +1603,60 @@ mark.search-highlight.active {
       }
     });
   }
+
+  // Scroll-based activation: update active turn + progress as user scrolls
+  let scrollTracking = true;
+  const origShowUpTo = showUpTo;
+
+  // Temporarily disable scroll tracking when showUpTo triggers programmatic scrolls
+  showUpTo = function(index) {
+    scrollTracking = false;
+    origShowUpTo(index);
+    // Re-enable after scroll animation settles
+    setTimeout(() => { scrollTracking = true; }, 800);
+  };
+
+  function onScrollUpdate() {
+    if (!scrollTracking || playing) return;
+    const turns = turnElements();
+    if (!turns.length) return;
+    const barH = getControlsHeight();
+    const viewMid = window.innerHeight / 2;
+    let best = -1;
+    for (let i = 0; i < turns.length; i++) {
+      const rect = turns[i].getBoundingClientRect();
+      // Find the last turn whose top is above the middle of the viewport
+      if (rect.top < viewMid) best = i;
+    }
+    if (best >= 0) {
+      const idx = best + 1; // 1-based
+      if (idx !== currentTurn) {
+        currentTurn = idx;
+        // Mark turns up to current as visible without scrolling
+        for (let i = 0; i < turns.length; i++) {
+          turns[i].classList.toggle("visible", i < currentTurn);
+        }
+        // Update dividers
+        for (const div of transcript.querySelectorAll(".bookmark-divider")) {
+          const t = parseInt(div.dataset.turn, 10);
+          div.classList.toggle("visible", t <= currentTurn);
+        }
+        updateProgress();
+        setActiveTurn(currentTurn - 1);
+      }
+    }
+  }
+
+  let scrollTick = false;
+  window.addEventListener("scroll", () => {
+    if (!scrollTick) {
+      scrollTick = true;
+      requestAnimationFrame(() => {
+        onScrollUpdate();
+        scrollTick = false;
+      });
+    }
+  }, { passive: true });
 
   // Init — render all turns into DOM, then reveal the first one
   renderAllTurns();
