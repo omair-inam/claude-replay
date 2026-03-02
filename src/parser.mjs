@@ -78,22 +78,22 @@ function collectAssistantBlocks(entries, start) {
         const btype = block.type;
         if (btype === "text") {
           const text = (block.text ?? "").trim();
-          if (!text) { i++; continue; }
+          if (!text) continue;
           const key = `text:${text.slice(0, 100)}`;
-          if (seenKeys.has(key)) { i++; continue; }
+          if (seenKeys.has(key)) continue;
           seenKeys.add(key);
           blocks.push({ kind: "text", text, tool_call: null });
         } else if (btype === "thinking") {
           const text = (block.thinking ?? "").trim();
-          if (!text) { i++; continue; }
+          if (!text) continue;
           const key = `thinking:${text.slice(0, 100)}`;
-          if (seenKeys.has(key)) { i++; continue; }
+          if (seenKeys.has(key)) continue;
           seenKeys.add(key);
           blocks.push({ kind: "thinking", text, tool_call: null });
         } else if (btype === "tool_use") {
           const toolId = block.id ?? "";
           const key = `tool_use:${toolId}`;
-          if (seenKeys.has(key)) { i++; continue; }
+          if (seenKeys.has(key)) continue;
           seenKeys.add(key);
           blocks.push({
             kind: "tool_use",

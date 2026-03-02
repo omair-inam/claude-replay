@@ -27,15 +27,22 @@ body {
 
 /* Controls bar */
 .controls {
-  position: sticky;
-  top: 0;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
   z-index: 100;
   background: var(--bg-surface);
-  border-bottom: 1px solid var(--border);
-  padding: 8px 12px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column-reverse;
+}
+
+.controls-row {
   display: flex;
   align-items: center;
   gap: 8px 12px;
+  padding: 8px 12px;
   flex-wrap: wrap;
 }
 
@@ -55,20 +62,33 @@ body {
 .controls button.active { background: var(--accent-dim); border-color: var(--accent); }
 
 .bar-title {
-  font-size: 11px;
-  color: var(--text-dim);
+  font-size: 13px;
+  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 200px;
+  text-decoration: none;
+  margin-right: auto;
+  flex: 1;
+  min-width: 0;
+}
+body.in-iframe .bar-title {
+  cursor: pointer;
+}
+body.in-iframe .bar-title::after {
+  content: " \2197";
+  font-size: 9px;
+}
+body.in-iframe .bar-title:hover {
+  color: var(--text);
 }
 
 .progress-wrap {
-  flex: 1;
-  min-width: 80px;
+  width: 100%;
   display: flex;
   align-items: center;
   gap: 8px;
+  padding: 0 12px 8px;
 }
 
 .progress-bar {
@@ -78,6 +98,18 @@ body {
   border-radius: 2px;
   cursor: pointer;
   position: relative;
+  transition: height 0.15s;
+}
+.progress-bar::before {
+  content: "";
+  position: absolute;
+  top: -12px;
+  bottom: -12px;
+  left: 0;
+  right: 0;
+}
+.progress-bar:hover {
+  height: 6px;
 }
 .progress-fill {
   height: 100%;
@@ -109,7 +141,7 @@ body {
 .filter-popover {
   display: none;
   position: absolute;
-  top: calc(100% + 6px);
+  bottom: calc(100% + 6px);
   left: 50%;
   transform: translateX(-50%);
   background: var(--bg-surface);
@@ -144,11 +176,86 @@ body {
 }
 body.in-iframe .controls-secondary { display: none; }
 
+/* More menu (replaces secondary controls on mobile + iframe) */
+.more-wrap { position: relative; }
+.more-popover {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  z-index: 200;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  min-width: 180px;
+}
+.more-wrap.open .more-popover { display: block; }
+.more-popover label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-dim);
+  cursor: pointer;
+  user-select: none;
+  font-size: 12px;
+  padding: 4px 0;
+  white-space: nowrap;
+}
+.more-popover label:hover { color: var(--text); }
+.more-popover input[type="checkbox"] { accent-color: var(--accent); }
+.more-popover .more-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.more-popover .more-row-label {
+  min-width: 50px;
+}
+.more-popover .more-search {
+  width: 100%;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-family: inherit;
+  font-size: 14px;
+  outline: none;
+  margin-top: 4px;
+}
+.more-popover .more-search:focus { border-color: var(--accent); }
+.more-popover .search-count {
+  font-size: 11px;
+  color: var(--text-dim);
+  padding: 2px 0;
+}
+.more-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 4px 0;
+}
+
+#more-btn { display: none; }
+
+@media (max-width: 600px) {
+  #more-btn { display: inline-flex; }
+  .controls-secondary { display: none; }
+  .progress-text { display: none; }
+}
+body.in-iframe .controls-secondary { display: none; }
+body.in-iframe #more-btn { display: inline-flex; }
+body.in-iframe .progress-text { display: none; }
+
 /* Transcript area */
 .transcript {
   padding: 16px;
   padding-bottom: 100vh;
-  min-height: calc(100vh - 50px);
+  min-height: 100vh;
 }
 
 .turn {
@@ -467,10 +574,6 @@ body.in-iframe .controls-secondary { display: none; }
   color: var(--text-dim);
   white-space: nowrap;
 }
-.search-group button {
-  padding: 4px 6px;
-  font-size: 11px;
-}
 mark.search-highlight {
   background: var(--orange);
   color: var(--bg);
@@ -482,12 +585,9 @@ mark.search-highlight.active {
 
 /* Mobile: larger touch targets, prevent iOS zoom */
 @media (max-width: 600px) {
-  .controls {
+  .controls-row {
     padding: 6px 8px;
     gap: 6px 8px;
-  }
-  .bar-title {
-    max-width: 120px;
   }
   .controls button {
     min-height: 40px;
@@ -517,6 +617,84 @@ mark.search-highlight.active {
   }
 }
 
+/* Bookmark dots on progress bar */
+.bookmark-dot {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--orange);
+  top: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 2;
+  opacity: 0.3;
+  transition: opacity 0.3s;
+}
+.bookmark-dot.reached { opacity: 1; }
+
+/* Bookmark divider in transcript */
+.bookmark-divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 16px 0 8px;
+  padding: 4px 0 4px 8px;
+  border-left: 3px solid var(--orange);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--orange);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  opacity: 0.25;
+  transition: opacity 0.4s;
+}
+.bookmark-divider.visible { opacity: 1; }
+
+/* Chapter menu */
+.chapter-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+.chapter-menu {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 0;
+  z-index: 200;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  min-width: 160px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+.chapter-wrap.open .chapter-menu { display: block; }
+.chapter-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text);
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.chapter-item:hover { background: var(--bg-hover); }
+.chapter-item-turn {
+  color: var(--text-dim);
+  font-size: 10px;
+  min-width: 24px;
+}
+.chapter-item-label {
+  color: var(--orange);
+  font-weight: 600;
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -527,35 +705,53 @@ mark.search-highlight.active {
 <body>
 <div class="container">
   <div class="controls">
-    <button id="btn-prev" title="Previous turn">&larr;</button>
-    <button id="btn-play" title="Play / Pause">&#9654;</button>
-    <button id="btn-next" title="Next turn">&rarr;</button>
-    <span class="bar-title">/*PAGE_TITLE*/</span>
+    <div class="controls-row">
+      <button id="btn-prev" title="Previous turn">&larr;</button>
+      <button id="btn-play" title="Play / Pause">&#9654;</button>
+      <button id="btn-next" title="Next turn">&rarr;</button>
+      <a class="bar-title" id="bar-title" title="/*PAGE_TITLE*/">/*PAGE_TITLE*/</a>
+      <span class="progress-text" id="progress-text">0 / 0</span>
+      <div class="chapter-wrap" id="chapter-wrap" style="display:none">
+        <button id="chapter-btn" title="Chapters" style="font-size:16px">&#9776;</button>
+        <div class="chapter-menu" id="chapter-menu"></div>
+      </div>
+      <div class="more-wrap" id="more-wrap">
+        <button id="more-btn" title="More" style="background:none;border:none;font-size:20px;padding:4px 4px;line-height:1">&#x22EE;</button>
+        <div class="more-popover" id="more-popover">
+          <div class="more-row">
+            <span class="more-row-label">Speed</span>
+            <button id="speed-btn2" title="Cycle speed">/*INITIAL_SPEED*/x</button>
+          </div>
+          <hr class="more-divider">
+          <label><input type="checkbox" id="toggle-thinking2" /*CHECKED_THINKING*/> Thinking</label>
+          <label><input type="checkbox" id="toggle-tools2" /*CHECKED_TOOLS*/> Tools</label>
+          <hr class="more-divider">
+          <input type="text" class="more-search" id="search-input2" placeholder="Search...">
+          <span class="search-count" id="search-count2"></span>
+        </div>
+      </div>
+      <div class="controls-secondary">
+        <div class="speed-control">
+          <button id="speed-btn" title="Cycle speed">/*INITIAL_SPEED*/x</button>
+        </div>
+        <div class="filter-wrap" id="filter-wrap">
+          <button id="filter-btn" title="Filter content"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M1 2.5A.5.5 0 0 1 1.5 2h13a.5.5 0 0 1 .4.8L10 8.7V13.5a.5.5 0 0 1-.7.5l-2.5-1.2a.5.5 0 0 1-.3-.5V8.7L1.1 2.8A.5.5 0 0 1 1 2.5z"/></svg></button>
+          <div class="filter-popover">
+            <label><input type="checkbox" id="toggle-thinking" /*CHECKED_THINKING*/> Thinking</label>
+            <label><input type="checkbox" id="toggle-tools" /*CHECKED_TOOLS*/> Tools</label>
+          </div>
+        </div>
+        <div class="search-group">
+          <input type="text" id="search-input" placeholder="Search...">
+          <span class="search-count" id="search-count"></span>
+        </div>
+      </div>
+    </div>
     <div class="progress-wrap">
       <div class="progress-bar" id="progress-bar">
         <div class="progress-fill" id="progress-fill"></div>
       </div>
-      <span class="progress-text" id="progress-text">0 / 0</span>
     </div>
-    <div class="controls-secondary">
-      <div class="speed-control">
-        <button id="speed-btn" title="Cycle speed">/*INITIAL_SPEED*/x</button>
-      </div>
-      <div class="filter-wrap" id="filter-wrap">
-        <button id="filter-btn" title="Filter content"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M1 2.5A.5.5 0 0 1 1.5 2h13a.5.5 0 0 1 .4.8L10 8.7V13.5a.5.5 0 0 1-.7.5l-2.5-1.2a.5.5 0 0 1-.3-.5V8.7L1.1 2.8A.5.5 0 0 1 1 2.5z"/></svg></button>
-        <div class="filter-popover">
-          <label><input type="checkbox" id="toggle-thinking" /*CHECKED_THINKING*/> Thinking</label>
-          <label><input type="checkbox" id="toggle-tools" /*CHECKED_TOOLS*/> Tools</label>
-        </div>
-      </div>
-      <div class="search-group">
-        <input type="text" id="search-input" placeholder="Search...">
-        <span class="search-count" id="search-count">0 of 0</span>
-        <button id="search-prev" title="Previous match">&uarr;</button>
-        <button id="search-next" title="Next match">&darr;</button>
-      </div>
-    </div>
-    <button id="popout-btn" title="Open in new tab" style="display:none"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M9 1h6v6h-2V4.4L7.7 9.7 6.3 8.3 11.6 3H9V1zM3 3h4v2H3v8h8V9h2v6H1V3h2z"/></svg></button>
   </div>
   <div class="transcript" id="transcript"></div>
 </div>
@@ -565,6 +761,7 @@ mark.search-highlight.active {
   "use strict";
 
   const TURNS = /*TURNS_JSON*/[];
+  const BOOKMARKS = /*BOOKMARKS_JSON*/[];
   let currentTurn = 0;
   let playing = false;
   let playTimer = null;
@@ -773,10 +970,16 @@ mark.search-highlight.active {
     const pct = total ? (currentTurn / total) * 100 : 0;
     progressFill.style.width = pct + "%";
     progressText.textContent = currentTurn + " / " + total;
+    // Update bookmark dot opacity
+    for (const dot of progressBar.querySelectorAll(".bookmark-dot")) {
+      const turn = parseInt(dot.dataset.turn, 10);
+      dot.classList.toggle("reached", turn <= currentTurn);
+    }
   }
 
   const controlsEl = $(".controls");
   function getControlsHeight() { return controlsEl.offsetHeight; }
+  function getTopOffset() { return 0; } // controls are at bottom
   const PEEK_OFFSET = 20;           // px of previous dimmed turn visible above
   const PAUSE_TOP_MS = 2500;        // pause at top of tall turn (ms, at 1x)
   const PAUSE_BOTTOM_MS = 2500;     // pause at bottom of tall turn before advancing
@@ -791,8 +994,11 @@ mark.search-highlight.active {
     // Wait for layout to be fully resolved before measuring
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        const absTop = el.getBoundingClientRect().top + window.scrollY;
-        const targetY = Math.max(0, absTop - getControlsHeight() - PEEK_OFFSET);
+        // If a bookmark divider precedes this turn, scroll to show it too
+        const prev = el.previousElementSibling;
+        const scrollTarget = (prev && prev.classList.contains("bookmark-divider")) ? prev : el;
+        const absTop = scrollTarget.getBoundingClientRect().top + window.scrollY;
+        const targetY = Math.max(0, absTop - getTopOffset() - PEEK_OFFSET);
         const dist = Math.abs(targetY - window.scrollY);
         if (dist < 2) return;
         // Scale duration with distance, with a floor
@@ -802,37 +1008,60 @@ mark.search-highlight.active {
     });
   }
 
+  // Get only .turn elements (excludes bookmark dividers)
+  function turnElements() { return transcript.querySelectorAll(".turn"); }
+
   function setActiveTurn(index) {
     for (const el of $$(".turn.active")) el.classList.remove("active");
-    if (index >= 0 && index < transcript.children.length) {
-      transcript.children[index].classList.add("active");
+    const turns = turnElements();
+    if (index >= 0 && index < turns.length) {
+      turns[index].classList.add("active");
     }
   }
 
+  // Build a map of turn index → bookmark label for quick lookup
+  const bookmarkMap = new Map();
+  for (const bm of BOOKMARKS) bookmarkMap.set(bm.turn, bm.label);
+
   function renderAllTurns() {
     for (let i = 0; i < TURNS.length; i++) {
-      const el = renderTurn(TURNS[i]);
+      const turn = TURNS[i];
+      const bmLabel = bookmarkMap.get(turn.index);
+      if (bmLabel) {
+        const divider = document.createElement("div");
+        divider.className = "bookmark-divider";
+        divider.dataset.turn = turn.index;
+        divider.textContent = bmLabel;
+        transcript.appendChild(divider);
+      }
+      const el = renderTurn(turn);
       transcript.appendChild(el);
     }
   }
 
   function showUpTo(index) {
     currentTurn = Math.min(index, TURNS.length);
+    const turns = turnElements();
     // Mark turns up to currentTurn as visible
-    for (let i = 0; i < transcript.children.length; i++) {
-      const el = transcript.children[i];
+    for (let i = 0; i < turns.length; i++) {
+      const el = turns[i];
       if (i < currentTurn) {
         el.classList.add("visible");
       } else {
         el.classList.remove("visible");
       }
     }
+    // Update bookmark divider visibility
+    for (const div of transcript.querySelectorAll(".bookmark-divider")) {
+      const t = parseInt(div.dataset.turn, 10);
+      div.classList.toggle("visible", t <= currentTurn);
+    }
     updateProgress();
     setActiveTurn(currentTurn - 1);
 
     // Pin active turn just below the controls bar, with a peek of previous turn
     if (currentTurn > 0) {
-      const el = transcript.children[currentTurn - 1];
+      const el = turns[currentTurn - 1];
       if (el) scrollToTurn(el);
     }
   }
@@ -877,7 +1106,7 @@ mark.search-highlight.active {
   }
 
   function stepBack() {
-    if (currentTurn > 1) {
+    if (currentTurn > 0) {
       showUpTo(currentTurn - 1);
     }
   }
@@ -909,7 +1138,7 @@ mark.search-highlight.active {
     // Show next turn
     showUpTo(currentTurn + 1);
 
-    const el = transcript.children[currentTurn - 1];
+    const el = turnElements()[currentTurn - 1];
     if (!el) { stopPlay(); return; }
 
     // Wait for layout, then decide: scroll through or advance
@@ -923,7 +1152,7 @@ mark.search-highlight.active {
         // Tall turn: first pause at top, then scroll to bottom, then advance
         const pauseTop = PAUSE_TOP_MS / speed;
         const scrollDuration = Math.min(Math.max(overflow / speed * SCROLL_SPEED_FACTOR, SCROLL_MIN_MS / speed), SCROLL_MAX_MS / speed);
-        const targetY = el.offsetTop - getControlsHeight() + el.offsetHeight - viewH;
+        const targetY = el.offsetTop - getTopOffset() + el.offsetHeight - viewH;
 
         playTimer = setTimeout(() => {
           if (!playing) return;
@@ -959,6 +1188,60 @@ mark.search-highlight.active {
     }
   }
 
+  // More menu (mobile/iframe)
+  const moreWrap = $("#more-wrap");
+  const moreBtn = $("#more-btn");
+  moreBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    moreWrap.classList.toggle("open");
+  });
+  document.addEventListener("click", (e) => {
+    if (!moreWrap.contains(e.target)) moreWrap.classList.remove("open");
+  });
+
+  // Sync more-popover controls with main controls
+  const speedBtn2 = $("#speed-btn2");
+  const toggleThinking2 = $("#toggle-thinking2");
+  const toggleTools2 = $("#toggle-tools2");
+  const searchInput2 = $("#search-input2");
+  const searchCount2 = $("#search-count2");
+
+  speedBtn2.addEventListener("click", () => {
+    const idx = SPEED_STEPS.indexOf(speed);
+    speed = SPEED_STEPS[(idx + 1) % SPEED_STEPS.length];
+    speedBtn.textContent = speed + "x";
+    speedBtn2.textContent = speed + "x";
+  });
+
+  toggleThinking2.addEventListener("change", () => {
+    toggleThinking.checked = toggleThinking2.checked;
+    applyVisibility();
+  });
+  toggleTools2.addEventListener("change", () => {
+    toggleTools.checked = toggleTools2.checked;
+    applyVisibility();
+  });
+
+  searchInput2.addEventListener("input", () => {
+    searchInput.value = searchInput2.value;
+    clearTimeout(searchDebounce);
+    searchDebounce = setTimeout(() => performSearch(searchInput.value.trim()), 200);
+  });
+  searchInput2.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (searchMatches.length > 0) {
+        goToMatch(e.shiftKey ? currentMatch - 1 : currentMatch + 1);
+      }
+    }
+    if (e.key === "Escape") {
+      searchInput2.value = "";
+      searchInput.value = "";
+      performSearch("");
+      searchInput2.blur();
+    }
+  });
+
   // Filter popover
   const filterWrap = $("#filter-wrap");
   const filterBtn = $("#filter-btn");
@@ -983,12 +1266,24 @@ mark.search-highlight.active {
     speedBtn.textContent = speed + "x";
   });
 
-  progressBar.addEventListener("click", (e) => {
+  function seekFromX(clientX) {
     const rect = progressBar.getBoundingClientRect();
-    const pct = (e.clientX - rect.left) / rect.width;
+    const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
     const target = Math.round(pct * TURNS.length);
     showUpTo(target);
-  });
+  }
+
+  progressBar.addEventListener("click", (e) => seekFromX(e.clientX));
+
+  // Touch drag on progress bar
+  progressBar.addEventListener("touchstart", (e) => {
+    e.preventDefault();
+    seekFromX(e.touches[0].clientX);
+  }, { passive: false });
+  progressBar.addEventListener("touchmove", (e) => {
+    e.preventDefault();
+    seekFromX(e.touches[0].clientX);
+  }, { passive: false });
 
   toggleThinking.addEventListener("change", applyVisibility);
   toggleTools.addEventListener("change", applyVisibility);
@@ -1000,8 +1295,9 @@ mark.search-highlight.active {
     const idx = parseInt(turn.dataset.index, 10);
     // Mark turns up to clicked one as visible, without scrolling
     currentTurn = idx;
-    for (let i = 0; i < transcript.children.length; i++) {
-      const el = transcript.children[i];
+    const turns = turnElements();
+    for (let i = 0; i < turns.length; i++) {
+      const el = turns[i];
       if (i < currentTurn) {
         el.classList.add("visible");
       } else {
@@ -1023,8 +1319,6 @@ mark.search-highlight.active {
   // --- Search ---
   const searchInput = $("#search-input");
   const searchCount = $("#search-count");
-  const searchPrevBtn = $("#search-prev");
-  const searchNextBtn = $("#search-next");
 
   let searchMatches = [];
   let currentMatch = -1;
@@ -1041,11 +1335,14 @@ mark.search-highlight.active {
   }
 
   function updateSearchCount() {
+    let text;
     if (searchMatches.length === 0) {
-      searchCount.textContent = "0 of 0";
+      text = searchInput.value.trim() ? "no matches" : "";
     } else {
-      searchCount.textContent = (currentMatch + 1) + " of " + searchMatches.length;
+      text = (currentMatch + 1) + "/" + searchMatches.length;
     }
+    searchCount.textContent = text;
+    if (searchCount2) searchCount2.textContent = text;
   }
 
   function goToMatch(index) {
@@ -1058,45 +1355,51 @@ mark.search-highlight.active {
     const mark = searchMatches[currentMatch];
     mark.classList.add("active");
 
-    // Expand any collapsed ancestors
+    // Expand any collapsed ancestors — collect them first (leaf to root),
+    // then expand root-to-leaf so parents are visible before children
+    const toExpand = [];
     let node = mark;
     while (node && node !== document.body) {
-      if (node.classList) {
-        // Expand collapsed turns
-        if (node.classList.contains("turn") && node.classList.contains("collapsed")) {
-          node.classList.remove("collapsed");
-        }
-        // Expand tool blocks
-        if (node.classList.contains("tool-block") && !node.classList.contains("open")) {
-          node.classList.add("open");
-        }
-        // Expand tool groups
-        if (node.classList.contains("tool-group") && !node.classList.contains("open")) {
-          node.classList.add("open");
-        }
-        // Expand thinking blocks
-        if (node.classList.contains("thinking-block") && !node.classList.contains("open")) {
-          node.classList.add("open");
-        }
-        // Expand collapsed collapsible-wraps
-        if (node.classList.contains("collapsible-wrap") && node.classList.contains("is-collapsed")) {
-          node.classList.remove("is-collapsed");
-          const btn = node.querySelector(".collapsible-toggle");
-          if (btn) btn.textContent = "Show less";
-        }
-      }
+      if (node.classList) toExpand.push(node);
       node = node.parentNode;
     }
+    for (const n of toExpand.reverse()) {
+      if (n.classList.contains("turn") && n.classList.contains("collapsed")) {
+        n.classList.remove("collapsed");
+      }
+      // Ensure turn is visible
+      if (n.classList.contains("turn")) {
+        const idx = parseInt(n.dataset.index, 10);
+        if (idx >= currentTurn) showUpTo(idx);
+      }
+      if (n.classList.contains("tool-group") && !n.classList.contains("open")) {
+        n.classList.add("open");
+      }
+      if (n.classList.contains("tool-block") && !n.classList.contains("open")) {
+        n.classList.add("open");
+      }
+      if (n.classList.contains("thinking-block") && !n.classList.contains("open")) {
+        n.classList.add("open");
+      }
+      if (n.classList.contains("collapsible-wrap") && n.classList.contains("is-collapsed")) {
+        n.classList.remove("is-collapsed");
+        const btn = n.querySelector(".collapsible-toggle");
+        if (btn) btn.textContent = "Show less";
+      }
+    }
 
-    // Scroll so the match is visible below the sticky controls bar
+    // Force reflow so getBoundingClientRect is accurate
+    mark.offsetTop;
+
+    // Scroll so the match is visible above the bottom controls bar
     const markRect = mark.getBoundingClientRect();
     const barH = getControlsHeight();
     const viewH = window.innerHeight;
-    const visibleTop = barH;
-    const visibleBottom = viewH;
+    const visibleTop = 0;
+    const visibleBottom = viewH - barH;
     // If mark is outside the visible region, scroll it to ~1/3 down
     if (markRect.top < visibleTop || markRect.bottom > visibleBottom) {
-      const targetY = markRect.top + window.scrollY - barH - (viewH - barH) / 3;
+      const targetY = markRect.top + window.scrollY - (viewH - barH) / 3;
       window.scrollTo({ top: Math.max(0, targetY), behavior: "smooth" });
     }
     updateSearchCount();
@@ -1107,6 +1410,28 @@ mark.search-highlight.active {
     if (!query) {
       updateSearchCount();
       return;
+    }
+
+    // Temporarily open all collapsible elements so TreeWalker can find text nodes
+    const wasClosedTools = [];
+    const wasClosedGroups = [];
+    const wasClosedThinking = [];
+    const wasCollapsed = [];
+    for (const el of document.querySelectorAll(".tool-block:not(.open)")) {
+      el.classList.add("open");
+      wasClosedTools.push(el);
+    }
+    for (const el of document.querySelectorAll(".tool-group:not(.open)")) {
+      el.classList.add("open");
+      wasClosedGroups.push(el);
+    }
+    for (const el of document.querySelectorAll(".thinking-block:not(.open)")) {
+      el.classList.add("open");
+      wasClosedThinking.push(el);
+    }
+    for (const el of document.querySelectorAll(".collapsible-wrap.is-collapsed")) {
+      el.classList.remove("is-collapsed");
+      wasCollapsed.push(el);
     }
 
     const containers = document.querySelectorAll(".user-text, .assistant-text, .tool-input, .tool-result, .thinking-body");
@@ -1152,6 +1477,20 @@ mark.search-highlight.active {
       }
     }
 
+    // Restore collapsed state (only for elements that don't contain matches)
+    for (const el of wasClosedTools) {
+      if (!el.querySelector("mark.search-highlight")) el.classList.remove("open");
+    }
+    for (const el of wasClosedGroups) {
+      if (!el.querySelector("mark.search-highlight")) el.classList.remove("open");
+    }
+    for (const el of wasClosedThinking) {
+      if (!el.querySelector("mark.search-highlight")) el.classList.remove("open");
+    }
+    for (const el of wasCollapsed) {
+      if (!el.querySelector("mark.search-highlight")) el.classList.add("is-collapsed");
+    }
+
     if (searchMatches.length > 0) {
       goToMatch(0);
     } else {
@@ -1162,14 +1501,6 @@ mark.search-highlight.active {
   searchInput.addEventListener("input", () => {
     clearTimeout(searchDebounce);
     searchDebounce = setTimeout(() => performSearch(searchInput.value.trim()), 200);
-  });
-
-  searchNextBtn.addEventListener("click", () => {
-    if (searchMatches.length > 0) goToMatch(currentMatch + 1);
-  });
-
-  searchPrevBtn.addEventListener("click", () => {
-    if (searchMatches.length > 0) goToMatch(currentMatch - 1);
   });
 
   searchInput.addEventListener("keydown", (e) => {
@@ -1195,14 +1526,54 @@ mark.search-highlight.active {
     }
   });
 
-  // Iframe detection — compact mode + pop-out button
-  const popoutBtn = $("#popout-btn");
+  // Iframe detection — compact mode + title as pop-out link
+  const barTitle = $("#bar-title");
   let inIframe = false;
   try { inIframe = window !== window.top; } catch (e) { inIframe = true; }
   if (inIframe) {
     document.body.classList.add("in-iframe");
-    popoutBtn.style.display = "";
-    popoutBtn.addEventListener("click", () => window.open(location.href, "_blank"));
+    barTitle.addEventListener("click", () => window.open(location.href, "_blank"));
+  }
+
+  // --- Bookmarks / Chapters ---
+  const chapterWrap = $("#chapter-wrap");
+  const chapterBtn = $("#chapter-btn");
+  const chapterMenu = $("#chapter-menu");
+
+  if (BOOKMARKS.length > 0) {
+    chapterWrap.style.display = "";
+
+    // Bookmark dots on progress bar (pointer-events: none, clicks go through to bar)
+    for (const bm of BOOKMARKS) {
+      const dot = document.createElement("div");
+      dot.className = "bookmark-dot";
+      dot.dataset.turn = bm.turn;
+      const pct = TURNS.length ? ((bm.turn - 1) / TURNS.length) * 100 : 0;
+      dot.style.left = pct + "%";
+      progressBar.appendChild(dot);
+    }
+
+    // Chapter menu items
+    for (const bm of BOOKMARKS) {
+      const item = document.createElement("div");
+      item.className = "chapter-item";
+      item.innerHTML = `<span class="chapter-item-turn">#${bm.turn}</span><span class="chapter-item-label">${escapeHtml(bm.label)}</span>`;
+      item.addEventListener("click", () => {
+        showUpTo(bm.turn);
+        chapterWrap.classList.remove("open");
+      });
+      chapterMenu.appendChild(item);
+    }
+
+    chapterBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      chapterWrap.classList.toggle("open");
+    });
+    document.addEventListener("click", (e) => {
+      if (!chapterWrap.contains(e.target)) {
+        chapterWrap.classList.remove("open");
+      }
+    });
   }
 
   // Init — render all turns into DOM, then reveal the first one

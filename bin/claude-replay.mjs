@@ -6,7 +6,7 @@
 
 import { parseArgs } from "node:util";
 import { basename, dirname } from "node:path";
-import { existsSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { parseTranscript, filterTurns } from "../src/parser.mjs";
 import { render } from "../src/renderer.mjs";
 import { getTheme, loadThemeFile, listThemes } from "../src/themes.mjs";
@@ -26,6 +26,8 @@ const options = {
   title: { type: "string" },
   "user-label": { type: "string", default: "User" },
   "assistant-label": { type: "string", default: "Claude" },
+  mark: { type: "string", multiple: true },
+  bookmarks: { type: "string" },
   help: { type: "boolean", short: "h", default: false },
 };
 
@@ -58,6 +60,8 @@ Options:
   --theme-file FILE       Custom theme JSON file (overrides --theme)
   --user-label NAME       Label for user messages (default: User)
   --assistant-label NAME  Label for assistant messages (default: Claude)
+  --mark "N:Label"        Add a bookmark at turn N (repeatable)
+  --bookmarks FILE        JSON file with bookmarks [{turn, label}]
   --list-themes           List available built-in themes and exit
   -h, --help              Show this help message`);
   process.exit(0);
@@ -149,6 +153,53 @@ if (!title) {
   }
 }
 
+// Parse bookmarks from --mark and --bookmarks
+let bookmarks = [];
+
+if (values.mark) {
+  for (const m of values.mark) {
+    const sep = m.indexOf(":");
+    if (sep === -1) {
+      console.error(`Error: invalid --mark format '${m}' (expected N:Label)`);
+      process.exit(1);
+    }
+    const turn = parseInt(m.slice(0, sep), 10);
+    const label = m.slice(sep + 1);
+    if (isNaN(turn)) {
+      console.error(`Error: invalid turn number in --mark '${m}'`);
+      process.exit(1);
+    }
+    bookmarks.push({ turn, label });
+  }
+}
+
+if (values.bookmarks) {
+  if (!existsSync(values.bookmarks)) {
+    console.error(`Error: bookmarks file not found: ${values.bookmarks}`);
+    process.exit(1);
+  }
+  try {
+    const data = JSON.parse(readFileSync(values.bookmarks, "utf-8"));
+    if (!Array.isArray(data)) {
+      console.error("Error: bookmarks file must contain a JSON array");
+      process.exit(1);
+    }
+    for (const item of data) {
+      if (typeof item.turn !== "number" || typeof item.label !== "string") {
+        console.error(`Error: each bookmark must have numeric 'turn' and string 'label'`);
+        process.exit(1);
+      }
+      bookmarks.push({ turn: item.turn, label: item.label });
+    }
+  } catch (e) {
+    if (e.message.startsWith("Error:")) throw e;
+    console.error(`Error: failed to parse bookmarks file: ${e.message}`);
+    process.exit(1);
+  }
+}
+
+bookmarks.sort((a, b) => a.turn - b.turn);
+
 const html = render(turns, {
   speed,
   showThinking: !values["no-thinking"],
@@ -158,6 +209,7 @@ const html = render(turns, {
   userLabel: values["user-label"],
   assistantLabel: values["assistant-label"],
   title,
+  bookmarks,
 });
 
 if (values.output) {

@@ -56,6 +56,7 @@ export function render(turns, opts = {}) {
     assistantLabel = "Claude",
     title = "Claude Code Replay",
     redactSecrets: redact = true,
+    bookmarks = [],
   } = opts;
 
   let html = readFileSync(TEMPLATE_PATH, "utf-8");
@@ -64,9 +65,10 @@ export function render(turns, opts = {}) {
   html = html.replace("/*TURNS_JSON*/[]", turnsToJson(turns, { redact }));
   html = html.replace("/*INITIAL_SPEED*/1", String(speed));  // JS default
   html = html.replace(/\/\*INITIAL_SPEED\*\//g, String(speed));  // HTML attrs
-  html = html.replace("/*CHECKED_THINKING*/", showThinking ? "checked" : "");
-  html = html.replace("/*CHECKED_TOOLS*/", showToolCalls ? "checked" : "");
+  html = html.replaceAll("/*CHECKED_THINKING*/", showThinking ? "checked" : "");
+  html = html.replaceAll("/*CHECKED_TOOLS*/", showToolCalls ? "checked" : "");
   html = html.replaceAll("/*PAGE_TITLE*/", title);
+  html = html.replace("/*BOOKMARKS_JSON*/[]", JSON.stringify(bookmarks));
   html = html.replace("/*USER_LABEL*/", userLabel);
   html = html.replace("/*ASSISTANT_LABEL*/", assistantLabel);
 

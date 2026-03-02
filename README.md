@@ -48,6 +48,8 @@ claude-replay <input.jsonl> [options]
 | `--speed N` | Initial playback speed, e.g. `2.0` (default: 1.0) |
 | `--no-thinking` | Hide thinking blocks by default |
 | `--no-tool-calls` | Hide tool call blocks by default |
+| `--mark "N:Label"` | Add a bookmark/chapter at turn N (repeatable) |
+| `--bookmarks FILE` | JSON file with bookmarks `[{turn, label}]` |
 | `--no-redact` | Disable automatic secret redaction |
 | `--title TEXT` | Page title (default: derived from input path) |
 | `--theme NAME` | Built-in theme (default: `tokyo-night`) |
