@@ -22,6 +22,7 @@ const options = {
   theme: { type: "string", default: "tokyo-night" },
   "theme-file": { type: "string" },
   "list-themes": { type: "boolean", default: false },
+  "no-redact": { type: "boolean", default: false },
   "user-label": { type: "string", default: "User" },
   "assistant-label": { type: "string", default: "Claude" },
   help: { type: "boolean", short: "h", default: false },
@@ -51,6 +52,7 @@ Options:
   --no-thinking           Hide thinking blocks by default
   --no-tool-calls         Hide tool call blocks by default
   --no-tool-results       Hide tool results by default
+  --no-redact             Disable secret redaction in output
   --theme NAME            Built-in theme (default: tokyo-night)
   --theme-file FILE       Custom theme JSON file (overrides --theme)
   --user-label NAME       Label for user messages (default: User)
@@ -137,6 +139,7 @@ const html = render(turns, {
   showToolCalls: !values["no-tool-calls"],
   showToolResults: !values["no-tool-results"],
   theme,
+  redactSecrets: !values["no-redact"],
   userLabel: values["user-label"],
   assistantLabel: values["assistant-label"],
 });

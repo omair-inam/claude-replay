@@ -49,6 +49,7 @@ claude-replay <input.jsonl> [options]
 | `--no-thinking` | Hide thinking blocks by default |
 | `--no-tool-calls` | Hide tool call blocks by default |
 | `--no-tool-results` | Hide tool results by default |
+| `--no-redact` | Disable automatic secret redaction |
 | `--theme NAME` | Built-in theme (default: `tokyo-night`) |
 | `--theme-file FILE` | Custom theme JSON file (overrides `--theme`) |
 | `--list-themes` | List available built-in themes and exit |
@@ -166,6 +167,28 @@ The output is a single HTML file with no external dependencies. Embed it in blog
 2. Turns are grouped as: user message + assistant response (text, tool calls, thinking blocks) + tool results
 3. **Renderer** injects the parsed turns as an inline JSON blob into the HTML template via string replacement
 4. The **player** is vanilla JS — no frameworks, no external requests
+
+## Secret redaction
+
+By default, claude-replay scans all embedded text for common secret patterns and replaces them with `[REDACTED]` **before** they are written into the output HTML. This means secrets from your session (API keys, tokens, connection strings, etc.) never end up in the generated file.
+
+Detected patterns include:
+- API keys (`sk-...`, `sk-ant-...`, `key-...`)
+- AWS access key IDs (`AKIA...`)
+- Bearer and JWT tokens
+- Database connection strings (`postgres://...`, `mongodb://...`, etc.)
+- Private key blocks (`-----BEGIN ... PRIVATE KEY-----`)
+- Generic key/value secrets (`api_key=...`, `auth_token: ...`)
+- Environment variable secrets (`PASSWORD=...`, `TOKEN=...`)
+- Long hex tokens (40+ characters)
+
+**Important:** Pattern-based redaction is a best-effort safety net — it cannot catch every possible secret format. Always review the generated HTML before sharing publicly.
+
+To disable redaction (e.g. for internal/private replays):
+
+```bash
+claude-replay session.jsonl --no-redact -o replay.html
+```
 
 ## JSONL transcript format
 
