@@ -997,7 +997,10 @@ mark.search-highlight.active {
   const TALL_THRESHOLD = 50;        // px overflow to trigger tall-turn mode
   const TURN_SCROLL_MS = 600;       // duration of scroll between turns
 
+  let scrollProtectUntil = 0; // timestamp — suppress scroll tracking after programmatic scrolls
+
   function scrollToTurn(el) {
+    scrollProtectUntil = Date.now() + 2000;
     // Wait for layout to be fully resolved before measuring
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
@@ -1724,7 +1727,12 @@ mark.search-highlight.active {
   try { inIframe = window !== window.top; } catch (e) { inIframe = true; }
   if (inIframe) {
     document.body.classList.add("in-iframe");
-    barTitle.addEventListener("click", () => window.open(location.href, "_blank"));
+    barTitle.addEventListener("click", () => {
+      const activeTurn = $(".turn.active");
+      const turnIdx = activeTurn ? parseInt(activeTurn.dataset.index, 10) : currentTurn;
+      const url = location.href.replace(/#.*/, "") + "#turn=" + turnIdx;
+      window.open(url, "_blank");
+    });
   }
 
   // --- Bookmarks / Chapters ---
@@ -1782,35 +1790,23 @@ mark.search-highlight.active {
     });
   }
 
-  // Scroll-based activation: update active turn + progress as user scrolls
-  let scrollTracking = true;
-  const origShowUpTo = showUpTo;
-
-  // Temporarily disable scroll tracking when showUpTo triggers programmatic scrolls
-  showUpTo = function(index) {
-    scrollTracking = false;
-    origShowUpTo(index);
-    // Re-enable after scroll animation settles
-    setTimeout(() => { scrollTracking = true; }, 800);
-  };
-
+  // Scroll-based activation: as user scrolls down, reveal new turns
   function onScrollUpdate() {
-    if (!scrollTracking || playing) return;
+    if (playing || Date.now() < scrollProtectUntil) return;
     const turns = turnElements();
     if (!turns.length) return;
-    const barH = getControlsHeight();
     const viewMid = window.innerHeight / 2;
+
     let best = -1;
     for (let i = 0; i < turns.length; i++) {
       const rect = turns[i].getBoundingClientRect();
-      // Find the last turn whose top is above the middle of the viewport
       if (rect.top < viewMid) best = i;
     }
     if (best >= 0) {
       const idx = best + 1; // 1-based
-      if (idx !== currentTurn) {
+      // Only advance forward — never snap backward after programmatic scrolls
+      if (idx > currentTurn) {
         currentTurn = idx;
-        // Mark turns up to current as visible without scrolling
         for (let i = 0; i < turns.length; i++) {
           turns[i].classList.toggle("visible", i < currentTurn);
           if (ANIMATE && i < currentTurn) {
@@ -1819,7 +1815,6 @@ mark.search-highlight.active {
             }
           }
         }
-        // Update dividers
         for (const div of transcript.querySelectorAll(".bookmark-divider")) {
           const t = parseInt(div.dataset.turn, 10);
           div.classList.toggle("visible", t <= currentTurn);
@@ -1841,10 +1836,12 @@ mark.search-highlight.active {
     }
   }, { passive: true });
 
-  // Init — render all turns into DOM, then reveal the first one
+  // Init — render all turns into DOM, then reveal at starting position
   renderAllTurns();
   applyVisibility();
-  if (TURNS.length > 0) showUpTo(1);
+  const hashMatch = location.hash.match(/turn=(\d+)/);
+  const startTurn = hashMatch ? Math.min(parseInt(hashMatch[1], 10), TURNS.length) : (TURNS.length > 0 ? 1 : 0);
+  if (startTurn > 0) showUpTo(startTurn);
 })();
 </script>
 </body>
