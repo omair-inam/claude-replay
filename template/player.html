@@ -125,6 +125,25 @@ body.in-iframe .bar-title:hover {
   border-radius: 2px;
   transition: width 0.2s;
 }
+.progress-tooltip {
+  position: absolute;
+  bottom: 12px;
+  transform: translateX(-50%);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 11px;
+  color: var(--text);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 10;
+}
+.progress-bar:hover .progress-tooltip {
+  opacity: 1;
+}
 
 .progress-text {
   font-size: 11px;
@@ -860,6 +879,7 @@ body.scroll-bottom .transcript {
     <div class="progress-wrap">
       <div class="progress-bar" id="progress-bar">
         <div class="progress-fill" id="progress-fill"></div>
+        <div class="progress-tooltip" id="progress-tooltip"></div>
       </div>
     </div>
   </div>
@@ -1749,6 +1769,24 @@ body.scroll-bottom .transcript {
     e.preventDefault();
     seekFromX(e.touches[0].clientX);
   }, { passive: false });
+
+  // Progress bar hover tooltip
+  const progressTooltip = $("#progress-tooltip");
+  progressBar.addEventListener("mousemove", (e) => {
+    const rect = progressBar.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const turnIdx = Math.max(1, Math.round(pct * TURNS.length));
+    const turn = TURNS[turnIdx - 1];
+    let label = `#${turnIdx}`;
+    if (turn && turn.timestamp && sessionStart != null) {
+      const delta = new Date(turn.timestamp).getTime() - sessionStart;
+      if (delta > 0) label += ` · ${formatRelativeTime(delta)}`;
+    }
+    progressTooltip.textContent = label;
+    // Position tooltip, clamped to bar edges
+    const left = Math.max(20, Math.min(rect.width - 20, e.clientX - rect.left));
+    progressTooltip.style.left = left + "px";
+  });
 
   toggleThinking.addEventListener("change", applyVisibility);
   toggleTools.addEventListener("change", applyVisibility);
