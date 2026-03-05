@@ -132,7 +132,7 @@ The generated HTML file is a fully self-contained interactive player:
 claude-replay --list-themes
 ```
 
-Available themes: `tokyo-night` (default), `monokai`, `solarized-dark`, `github-light`, `dracula`.
+Available themes: `tokyo-night` (default), `monokai`, `solarized-dark`, `github-light`, `dracula`, `bubbles`.
 
 ### Custom themes
 
@@ -164,6 +164,18 @@ claude-replay session.jsonl --theme-file my-theme.json -o replay.html
 ```
 
 Any missing keys are filled from the `tokyo-night` defaults, so you only need to specify the colors you want to change.
+
+For advanced customization, add an `extraCss` key with arbitrary CSS rules to override layout, fonts, or any other styles:
+
+```json
+{
+  "bg": "#ffffff",
+  "text": "#1c1e21",
+  "extraCss": ".assistant-text { border-radius: 12px; border: 1px solid #ddd; }"
+}
+```
+
+See the built-in `bubbles` theme for an example of a fully custom layout using `extraCss`.
 
 <details>
 <summary>Theme variables reference</summary>
