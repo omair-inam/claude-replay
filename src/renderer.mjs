@@ -8,6 +8,21 @@ import { redactSecrets, redactObject } from "./secrets.mjs";
 
 const TEMPLATE_PATH = new URL("../template/player.html", import.meta.url);
 
+/** Escape text for safe embedding in HTML text nodes and attribute values. */
+function escapeHtml(str) {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/** Escape a JSON string for safe embedding inside a <script> tag. */
+function escapeJsonForScript(json) {
+  return json.replace(/<\//g, "<\\/").replace(/<!--/g, "<\\!--");
+}
+
 /**
  * Serialize turns into a JSON string for embedding in HTML.
  * @param {import('./parser.mjs').Turn[]} turns
@@ -42,8 +57,7 @@ function turnsToJson(turns, { redact = true } = {}) {
     timestamp: turn.timestamp,
     ...(turn.system_events ? { system_events: turn.system_events } : {}),
   }));
-  // Escape </script> sequences so the JSON blob doesn't break the HTML parser
-  return JSON.stringify(data).replace(/<\//g, "<\\/");
+  return escapeJsonForScript(JSON.stringify(data));
 }
 
 /**
@@ -54,7 +68,7 @@ function turnsToJson(turns, { redact = true } = {}) {
  */
 export function render(turns, opts = {}) {
   const {
-    speed = 1.0,
+    speed: rawSpeed = 1.0,
     showThinking = true,
     showToolCalls = true,
     theme = getTheme("tokyo-night"),
@@ -63,8 +77,12 @@ export function render(turns, opts = {}) {
     title = "Claude Code Replay",
     redactSecrets: redact = true,
     bookmarks = [],
-    scrollMode = "bottom",
+    scrollMode: rawScrollMode = "bottom",
   } = opts;
+
+  // Validate inputs
+  const speed = Number.isFinite(rawSpeed) ? Math.max(0.1, Math.min(rawSpeed, 10)) : 1.0;
+  const scrollMode = rawScrollMode === "top" ? "top" : "bottom";
 
   let html = readFileSync(TEMPLATE_PATH, "utf-8");
 
@@ -76,15 +94,15 @@ export function render(turns, opts = {}) {
   html = html.replace(/\/\*INITIAL_SPEED\*\//g, String(speed));  // HTML attrs
   html = html.replaceAll("/*CHECKED_THINKING*/", showThinking ? "checked" : "");
   html = html.replaceAll("/*CHECKED_TOOLS*/", showToolCalls ? "checked" : "");
-  html = html.replaceAll("/*PAGE_TITLE*/", title);
-  html = html.replace("/*USER_LABEL*/", userLabel);
-  html = html.replace("/*ASSISTANT_LABEL*/", assistantLabel);
+  html = html.replaceAll("/*PAGE_TITLE*/", escapeHtml(title));
+  html = html.replace("/*USER_LABEL*/", escapeHtml(userLabel));
+  html = html.replace("/*ASSISTANT_LABEL*/", escapeHtml(assistantLabel));
   html = html.replace("/*SCROLL_MODE*/", scrollMode);
 
   // JSON blobs last — they may contain text matching any of the above placeholders.
   // BOOKMARKS before TURNS, because TURNS data may contain the literal placeholder
   // string in user messages (e.g. from pasted plans).
-  html = html.replace("/*BOOKMARKS_JSON*/[]", JSON.stringify(bookmarks));
+  html = html.replace("/*BOOKMARKS_JSON*/[]", escapeJsonForScript(JSON.stringify(bookmarks)));
   html = html.replace("/*TURNS_JSON*/[]", turnsToJson(turns, { redact }));
 
   return html;
