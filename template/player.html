@@ -843,6 +843,47 @@ body.scroll-bottom .transcript {
   font-weight: 600;
 }
 
+/* Splash / title screen */
+.splash {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+  background: var(--bg);
+}
+.splash.hidden { display: none; }
+.splash-title {
+  color: var(--text);
+  font-size: 22px;
+  font-weight: 600;
+  text-align: center;
+  max-width: 600px;
+  padding: 0 24px;
+}
+.splash-play {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  font-size: 24px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s, color 0.2s;
+  padding-left: 4px;
+}
+.splash-play:hover {
+  background: var(--accent);
+  color: var(--bg);
+}
+
 /* Sub-turn animation */
 .block-hidden { display: none; }
 .block-revealing {
@@ -910,6 +951,10 @@ body.scroll-bottom .transcript {
         <div class="progress-tooltip" id="progress-tooltip"></div>
       </div>
     </div>
+  </div>
+  <div id="splash" class="splash">
+    <div class="splash-title">/*PAGE_TITLE*/</div>
+    <button class="splash-play" id="splash-play">&#9654;</button>
   </div>
   <div class="transcript" id="transcript" style="opacity:0.5">Loading...</div>
 </div>
@@ -1613,7 +1658,19 @@ body.scroll-bottom .transcript {
 
     if (ANIMATE) {
       // Show the turn container (header + user text) immediately
+      const fromSplash = currentTurn === 0;
       showUpTo(currentTurn + 1, { skipScroll: true });
+
+      // From splash: instantly position at the first turn
+      if (fromSplash && SCROLL_MODE === "bottom") {
+        const el = turnElements()[0];
+        if (el) {
+          const barH = getControlsHeight();
+          const viewH = window.innerHeight - barH;
+          const absBottom = el.getBoundingClientRect().bottom + window.scrollY;
+          window.scrollTo({ top: Math.max(0, absBottom - viewH + 20), behavior: "instant" });
+        }
+      }
 
       const el = turnElements()[currentTurn - 1];
       if (!el) { stopPlay(); return; }
@@ -1704,6 +1761,12 @@ body.scroll-bottom .transcript {
   }
 
   function startPlay() {
+    // Dismiss splash screen if visible
+    const sp = document.getElementById("splash");
+    if (sp && !sp.classList.contains("hidden")) {
+      sp.classList.add("hidden");
+    }
+
     if (currentTurn >= TURNS.length) {
       // Reset if at end
       currentTurn = 0;
@@ -1757,6 +1820,11 @@ body.scroll-bottom .transcript {
     animatePausedState = null;
     if (currentTurn > 1) {
       showUpTo(currentTurn - 1, { anchorTop: true });
+    } else if (currentTurn === 1) {
+      // Go back to splash
+      showUpTo(0);
+      const sp = document.getElementById("splash");
+      if (sp) sp.classList.remove("hidden");
     }
   }
 
@@ -1766,7 +1834,7 @@ body.scroll-bottom .transcript {
 
   function updateProgress() {
     const total = TURNS.length;
-    const pct = total > 1 ? ((currentTurn - 1) / (total - 1)) * 100 : (currentTurn ? 100 : 0);
+    const pct = total > 1 ? Math.max(0, ((currentTurn - 1) / (total - 1)) * 100) : (currentTurn ? 100 : 0);
     progressFill.style.width = pct + "%";
     progressText.textContent = currentTurn + " of " + total;
     // Update turn dot states
@@ -1797,13 +1865,23 @@ body.scroll-bottom .transcript {
   function seekFromX(clientX) {
     const rect = progressBar.getBoundingClientRect();
     const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    const target = Math.max(1, Math.min(TURNS.length, Math.round(pct * (TURNS.length - 1)) + 1));
-    showUpTo(target, { anchorTop: true });
+    const target = Math.min(TURNS.length, Math.round(pct * (TURNS.length - 1)) + 1);
+    const sp = document.getElementById("splash");
+    if (target <= 1 && pct < 0.05 && sp) {
+      // Clicking at the very start: show splash
+      showUpTo(0);
+      sp.classList.remove("hidden");
+    } else {
+      if (sp) sp.classList.add("hidden");
+      showUpTo(Math.max(1, target), { anchorTop: true });
+    }
   }
 
   // Scroll-based activation: as user scrolls down, reveal new turns
   function onScrollUpdate() {
     if (playing || Date.now() < scrollProtectUntil) return;
+    const sp = document.getElementById("splash");
+    if (sp && !sp.classList.contains("hidden")) return;
     const turns = turnElements();
     if (!turns.length) return;
     const viewMid = window.innerHeight / 2;
@@ -2082,16 +2160,22 @@ body.scroll-bottom .transcript {
   }
 
   // Init
+  const splash = $("#splash");
   if (SCROLL_MODE === "bottom") document.body.classList.add("scroll-bottom");
   transcript.textContent = "";
   transcript.style.opacity = "";
   renderAllTurns();
   applyVisibility();
   const hashMatch = location.hash.match(/turn=(\d+)/);
-  const startTurn = hashMatch ? Math.min(parseInt(hashMatch[1], 10), TURNS.length) : (TURNS.length > 0 ? 1 : 0);
-  if (startTurn > 0) {
-    showUpTo(startTurn);
+  if (hashMatch) {
+    // Deep link: skip splash, jump directly
+    splash.classList.add("hidden");
+    const startTurn = Math.min(parseInt(hashMatch[1], 10), TURNS.length);
+    if (startTurn > 0) showUpTo(startTurn);
   }
+  // else: splash is visible, currentTurn = 0, progress at 0%
+
+  $("#splash-play").addEventListener("click", () => startPlay());
 })();
 </script>
 </body>
