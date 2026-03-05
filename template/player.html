@@ -590,14 +590,13 @@ body.scroll-bottom .transcript {
 }
 .thinking-header {
   font-size: 11px;
-  color: var(--text-dim);
+  color: var(--text);
   cursor: pointer;
   user-select: none;
   display: flex;
   align-items: center;
   gap: 4px;
 }
-.thinking-header:hover { color: var(--text); }
 .thinking-chevron {
   font-size: 10px;
   transition: transform 0.2s;
@@ -710,6 +709,20 @@ body.scroll-bottom .transcript {
   margin-left: 2px;
 }
 @keyframes blink { 50% { opacity: 0; } }
+
+/* Active block spinner — visible on the block currently waiting during playback */
+.block-spinner {
+  display: none;
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid var(--text-dim);
+  border-top-color: var(--text);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+.block-active .block-spinner { display: inline-block; }
+@keyframes spin { to { transform: rotate(360deg); } }
 
 /* Mobile: larger touch targets, prevent iOS zoom */
 @media (max-width: 600px) {
@@ -1165,7 +1178,7 @@ body.scroll-bottom .transcript {
   function hideAllBlocks(turnEl) {
     for (const w of turnEl.querySelectorAll(".block-wrapper")) {
       w.classList.add("block-hidden");
-      w.classList.remove("block-revealing");
+      w.classList.remove("block-revealing", "block-active");
     }
   }
 
@@ -1276,7 +1289,7 @@ body.scroll-bottom .transcript {
           } else if (block.kind === "thinking") {
             html += `<div class="block-wrapper${hiddenCls}" data-block-idx="${seg.blockIdx}"><div class="thinking-block" data-type="thinking">
               <div class="thinking-header" onclick="this.parentElement.classList.toggle('open')">
-                <span class="thinking-chevron">&#9654;</span> Thinking...
+                <span class="thinking-chevron">&#9654;</span> Thinking <span class="block-spinner"></span>
               </div>
               <div class="thinking-body">${renderMarkdown(block.text)}</div>
             </div></div>`;
@@ -1295,6 +1308,7 @@ body.scroll-bottom .transcript {
                 <span class="tool-indicator"></span>
                 <span class="tool-name">${escapeHtml(tc.name)}</span>
                 <span class="tool-args-preview">${escapeHtml(preview)}</span>
+                <span class="block-spinner"></span>
                 <span class="tool-chevron">&#9654;</span>
               </div>
               <div class="tool-body">${bodyHtml}</div>
@@ -1311,6 +1325,7 @@ body.scroll-bottom .transcript {
                 <span class="tool-group-chevron">&#9654;</span>
                 ${seg.blocks.length} tool calls
                 <span class="tool-group-names">${escapeHtml(uniqueNames)}</span>
+                <span class="block-spinner"></span>
               </div>
               <div class="tool-group-body">${toolHtml}</div>
             </div></div>`;
@@ -1519,8 +1534,12 @@ body.scroll-bottom .transcript {
     function revealWrapper(idx) {
       const w = wrappers[idx];
       if (!w) return;
+      // Clear any previous block-active
+      const prev = el.querySelector(".block-active");
+      if (prev) prev.classList.remove("block-active");
       w.classList.remove("block-hidden");
       w.classList.add("block-revealing");
+      w.classList.add("block-active");
       requestAnimationFrame(() => {
         const barH = getControlsHeight();
         const viewBottom = window.innerHeight - barH;
@@ -1534,7 +1553,11 @@ body.scroll-bottom .transcript {
 
     function revealNext() {
       if (cancelled || currentIdx >= gaps.length) {
-        if (!cancelled) { animatePausedState = null; onComplete(); }
+        if (!cancelled) {
+          for (const a of el.querySelectorAll(".block-active")) a.classList.remove("block-active");
+          animatePausedState = null;
+          onComplete();
+        }
         return;
       }
       const idx = currentIdx;
