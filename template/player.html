@@ -1718,18 +1718,24 @@ body.in-iframe .progress-text { display: none; }
       return;
     }
 
-    // Resume if current turn has unrevealed blocks (from block-by-block stepping)
+    // Resume current turn based on block state
     if (currentTurn > 0) {
       const turnEl = turnElements()[currentTurn - 1];
       if (turnEl) {
         const revealed = turnEl.querySelectorAll(".block-wrapper:not(.block-hidden)").length;
         const total = turnEl.querySelectorAll(".block-wrapper").length;
         if (revealed < total) {
+          // Partially revealed (from block-by-block stepping): animate remaining blocks
           animateCancelFn = animateTurn(currentTurn - 1, () => {
             animateCancelFn = null;
             if (!playing) return;
             dwellThenAdvance();
           }, revealed);
+          return;
+        }
+        if (revealed > 0 && total > 0) {
+          // Fully revealed (from scrolling): dwell then advance to next turn
+          dwellThenAdvance();
           return;
         }
       }
