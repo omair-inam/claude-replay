@@ -73,7 +73,7 @@ function parseJsonl(filePath) {
     const topType = obj.type;
     if (topType === "user" || topType === "assistant") {
       entries.push(obj);
-    } else if (topType == null) {
+    } else if (topType === undefined || topType === null) {
       const role = obj.message?.role;
       if (role === "user" || role === "assistant") {
         entries.push(obj);
@@ -105,14 +105,14 @@ function collectAssistantBlocks(entries, start) {
         if (btype === "text") {
           const text = (block.text ?? "").trim();
           if (!text || text === "No response requested.") continue;
-          const key = `text:${text.slice(0, 100)}`;
+          const key = `text:${text}`;
           if (seenKeys.has(key)) continue;
           seenKeys.add(key);
           blocks.push({ kind: "text", text, tool_call: null, timestamp: entryTs });
         } else if (btype === "thinking") {
           const text = (block.thinking ?? "").trim();
           if (!text) continue;
-          const key = `thinking:${text.slice(0, 100)}`;
+          const key = `thinking:${text}`;
           if (seenKeys.has(key)) continue;
           seenKeys.add(key);
           blocks.push({ kind: "thinking", text, tool_call: null, timestamp: entryTs });
@@ -316,6 +316,7 @@ export function filterTurns(turns, opts = {}) {
 
   if (opts.timeFrom) {
     const dtFrom = new Date(opts.timeFrom).getTime();
+    if (isNaN(dtFrom)) throw new Error(`Invalid --from date: ${opts.timeFrom}`);
     result = result.filter(
       (t) => t.timestamp && new Date(t.timestamp).getTime() >= dtFrom
     );
@@ -323,6 +324,7 @@ export function filterTurns(turns, opts = {}) {
 
   if (opts.timeTo) {
     const dtTo = new Date(opts.timeTo).getTime();
+    if (isNaN(dtTo)) throw new Error(`Invalid --to date: ${opts.timeTo}`);
     result = result.filter(
       (t) => t.timestamp && new Date(t.timestamp).getTime() <= dtTo
     );

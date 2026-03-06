@@ -84,6 +84,8 @@ claude-replay <input.jsonl> [options]
 | `--bookmarks FILE` | JSON file with bookmarks `[{turn, label}]` |
 | `--no-redact` | Disable automatic secret redaction |
 | `--title TEXT` | Page title (default: derived from input path) |
+| `--user-label NAME` | Label for user messages (default: `User`) |
+| `--assistant-label NAME` | Label for assistant messages (default: `Claude`) |
 | `--theme NAME` | Built-in theme (default: `tokyo-night`) |
 | `--theme-file FILE` | Custom theme JSON file (overrides `--theme`) |
 | `--no-minify` | Use unminified template (default: minified if available) |
@@ -113,11 +115,11 @@ claude-replay session.jsonl --turns 1-5 > snippet.html
 
 The generated HTML file is a fully self-contained interactive player:
 
-- **Play/Pause** — auto-advances through turns
-- **Step forward/back** — navigate one turn at a time
-- **Progress bar** — click to jump to any point
-- **Speed slider** — 0.5x to 5x playback speed
-- **Toggle checkboxes** — show/hide thinking blocks, tool calls, and tool results
+- **Play/Pause** — auto-advances through turns with block-by-block animation
+- **Step forward/back** — navigate one block at a time within turns
+- **Progress bar** — click to jump to any point; session timer shows elapsed/total time
+- **Speed control** — 0.5x to 5x playback speed
+- **Toggle checkboxes** — show/hide thinking blocks and tool calls
 
 ### Keyboard shortcuts
 
