@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.2
+
+- Fix: expanding a block while paused then stepping forward now reveals the next block instead of jumping to the next turn
+- Fix: expanded blocks are now collapsed when rewinding
+- Fix: `#turn=0` deep link shows splash screen instead of blank page
+- Add Playwright e2e integration tests (25 tests covering playback, stepping, expand/collapse, keyboard shortcuts, navbar, progress bar, speed control, chapters)
+
 ## 0.1.1
 
 - Fix README screenshot layout for npm
