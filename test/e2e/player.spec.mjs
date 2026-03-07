@@ -267,16 +267,16 @@ test("progress bar fill advances with turns", async ({ page }) => {
 
   // Each goto must be a full page load (not just hash change),
   // so navigate to about:blank between them.
-  // Turn 1: 0%, Turn 2: 33.3%, Turn 4: 100%
+  // Turn 1: 0%, Turn 2: 25%, Turn 5: 100%
   await goto(page, "turn=1");
   expect(await getFillWidth()).toBe(0);
 
   await page.goto("about:blank");
   await goto(page, "turn=2");
-  expect(Math.round(await getFillWidth())).toBe(33);
+  expect(await getFillWidth()).toBe(25);
 
   await page.goto("about:blank");
-  await goto(page, "turn=4");
+  await goto(page, "turn=5");
   expect(await getFillWidth()).toBe(100);
 });
 
@@ -289,7 +289,7 @@ test("clicking progress bar seeks to position", async ({ page }) => {
   await bar.click({ position: { x: box.width - 5, y: box.height / 2 } });
 
   // Should be at or near the last turn
-  await expect(page.locator('.turn[data-index="4"]')).toBeVisible();
+  await expect(page.locator('.turn[data-index="5"]')).toBeVisible();
 });
 
 test("progress text shows timer", async ({ page }) => {
@@ -352,8 +352,8 @@ test("chapter click stops playback", async ({ page }) => {
   await page.locator("#chapter-btn").click();
   await page.locator("#chapter-menu .chapter-item", { hasText: "Wrap up" }).click();
 
-  // Should be at turn 4 and paused (play button shows ▶ not ❚❚)
-  await expect(page.locator('.turn[data-index="4"]')).toBeVisible();
+  // Should be at turn 5 and paused (play button shows ▶ not ❚❚)
+  await expect(page.locator('.turn[data-index="5"]')).toBeVisible();
   const btnText = await page.locator("#btn-play").textContent();
   expect(btnText).toBe("▶");
 });
@@ -417,4 +417,40 @@ test("other tools still render generic input/result", async ({ page }) => {
   // Should have generic input/result, NOT diff-view
   await expect(tool.locator(".tool-input")).toBeVisible();
   await expect(tool.locator(".diff-view")).toHaveCount(0);
+});
+
+// ─── Error state ───────────────────────────────────────────
+
+test("failed tool shows red indicator dot", async ({ page }) => {
+  await goto(page, "turn=4");
+  const editTool = page.locator('.turn[data-index="4"] .tool-block', { hasText: "Edit" }).first();
+
+  // Indicator should have error class
+  await expect(editTool.locator(".tool-indicator.tool-error")).toBeVisible();
+});
+
+test("failed Edit tool strips tool_use_error tags and shows red result", async ({ page }) => {
+  await goto(page, "turn=4");
+  const editTool = page.locator('.turn[data-index="4"] .tool-block', { hasText: "Edit" }).first();
+  await editTool.locator(".tool-header").click();
+  await expect(editTool.locator(".tool-body")).toBeVisible();
+
+  // Result should not contain XML tags
+  const result = editTool.locator(".diff-result");
+  await expect(result).toBeVisible();
+  await expect(result).toContainText("File has been modified");
+  const text = await result.textContent();
+  expect(text).not.toContain("<tool_use_error>");
+
+  // Result should have error class
+  await expect(result).toHaveClass(/diff-result-error/);
+});
+
+test("successful tool does not show red indicator", async ({ page }) => {
+  await goto(page, "turn=3");
+  const editTool = page.locator('.turn[data-index="3"] .tool-block', { hasText: "Edit" }).first();
+
+  // Indicator should NOT have error class
+  await expect(editTool.locator(".tool-indicator")).toBeVisible();
+  await expect(editTool.locator(".tool-indicator.tool-error")).toHaveCount(0);
 });

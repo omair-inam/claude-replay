@@ -540,6 +540,9 @@ body.in-iframe .bar-title:hover {
 .diff-line-del { color: var(--red); background: rgba(248,81,73,0.1); }
 .diff-line-add { color: var(--green); background: rgba(63,185,80,0.1); }
 .diff-result { color: var(--text-dim); font-size: 11px; padding: 6px 10px; border-top: 1px solid var(--border); }
+.diff-result-error { color: var(--red); }
+.tool-indicator.tool-error { background: var(--red); }
+.tool-result.tool-result-error { color: var(--red); }
 
 /* Tool group (consecutive tool calls) */
 .tool-group {
@@ -1234,7 +1237,8 @@ body.in-iframe .bar-title:hover {
       }
       diffHtml += "</div>";
       if (tc.result != null) {
-        diffHtml += `<div class="diff-result">${escapeHtml(tc.result)}</div>`;
+        const errCls = tc.is_error ? " diff-result-error" : "";
+        diffHtml += `<div class="diff-result${errCls}">${escapeHtml(tc.result)}</div>`;
       }
       return diffHtml;
     }
@@ -1243,7 +1247,8 @@ body.in-iframe .bar-title:hover {
       const fp = input.file_path || "";
       let html = `<div class="diff-view"><div class="diff-file">${escapeHtml(fp)}</div><pre style="margin:0;background:none;border:none;padding:0;overflow:visible;"><code>${escapeHtml(input.content)}</code></pre></div>`;
       if (tc.result != null) {
-        html += `<div class="diff-result">${escapeHtml(tc.result)}</div>`;
+        const errCls = tc.is_error ? " diff-result-error" : "";
+        html += `<div class="diff-result${errCls}">${escapeHtml(tc.result)}</div>`;
       }
       return html;
     }
@@ -1251,7 +1256,8 @@ body.in-iframe .bar-title:hover {
     // Default: generic input + result
     let bodyHtml = `<div class="tool-input"><div class="tool-input-label">Input</div>${formatInput(input)}</div>`;
     if (tc.result != null) {
-      bodyHtml += `<div class="tool-result" data-type="result"><div class="tool-result-label">Result</div>${escapeHtml(tc.result)}</div>`;
+      const errCls = tc.is_error ? " tool-result-error" : "";
+      bodyHtml += `<div class="tool-result${errCls}" data-type="result"><div class="tool-result-label">Result</div>${escapeHtml(tc.result)}</div>`;
     }
     return bodyHtml;
   }
@@ -1442,7 +1448,7 @@ body.in-iframe .bar-title:hover {
             const bodyHtml = formatToolBody(tc);
             return `<div class="tool-block" data-type="tool">
               <div class="tool-header" onclick="this.parentElement.classList.toggle('open')">
-                <span class="tool-indicator"></span>
+                <span class="tool-indicator${tc.is_error ? " tool-error" : ""}"></span>
                 <span class="tool-name">${escapeHtml(tc.name)}</span>
                 <span class="tool-args-preview">${escapeHtml(preview)}</span>
                 <span class="block-spinner"></span>
@@ -1452,15 +1458,16 @@ body.in-iframe .bar-title:hover {
             </div>`;
           }).join("");
 
-          if (seg.blocks.length <= 2) {
+          if (seg.blocks.length <= 4) {
             html += `<div class="block-wrapper${hiddenCls}" data-block-idx="${seg.blockIdx}">${toolHtml}</div>`;
           } else {
             const names = seg.blocks.map(b => b.tool_call.name);
             const uniqueNames = [...new Set(names)].join(", ");
+            const hasError = seg.blocks.some(b => b.tool_call.is_error);
             html += `<div class="block-wrapper${hiddenCls}" data-block-idx="${seg.blockIdx}"><div class="tool-group" data-type="tool">
               <div class="tool-group-header" onclick="this.parentElement.classList.toggle('open')">
                 <span class="tool-group-chevron">&#9654;</span>
-                ${seg.blocks.length} tool calls
+                ${hasError ? '<span class="tool-indicator tool-error" style="display:inline-block;margin-right:4px;"></span>' : ''}${seg.blocks.length} tool calls
                 <span class="tool-group-names">${escapeHtml(uniqueNames)}</span>
                 <span class="block-spinner"></span>
               </div>

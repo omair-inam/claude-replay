@@ -55,6 +55,9 @@ function turnsToJsonData(turns, { redact = true } = {}) {
             ? redactSecrets(b.tool_call.result)
             : b.tool_call.result,
         };
+        if (b.tool_call.is_error) {
+          block.tool_call.is_error = true;
+        }
         if (b.tool_call.resultTimestamp) {
           block.tool_call.resultTimestamp = b.tool_call.resultTimestamp;
         }

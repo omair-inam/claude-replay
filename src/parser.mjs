@@ -5,7 +5,7 @@
 import { readFileSync } from "node:fs";
 
 /**
- * @typedef {{ tool_use_id: string, name: string, input: object, result: string|null, resultTimestamp: string|null }} ToolCall
+ * @typedef {{ tool_use_id: string, name: string, input: object, result: string|null, resultTimestamp: string|null, is_error: boolean }} ToolCall
  * @typedef {{ kind: string, text: string, tool_call: ToolCall|null, timestamp: string|null }} AssistantBlock
  * @typedef {{ index: number, user_text: string, blocks: AssistantBlock[], timestamp: string }} Turn
  */
@@ -158,6 +158,7 @@ function collectAssistantBlocks(entries, start) {
               input: block.input ?? {},
               result: null,
               resultTimestamp: null,
+              is_error: false,
             },
             timestamp: entryTs,
           });
@@ -210,8 +211,11 @@ function attachToolResults(blocks, entries, resultStart) {
               } else {
                 resultText = String(resultContent);
               }
+              // Strip <tool_use_error> wrapper if present
+              resultText = resultText.replace(/^<tool_use_error>([\s\S]*)<\/tool_use_error>$/, "$1");
               pending.get(tid).result = resultText;
               pending.get(tid).resultTimestamp = entry.timestamp ?? null;
+              pending.get(tid).is_error = !!block.is_error;
               pending.delete(tid);
             }
           }
