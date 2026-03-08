@@ -32,6 +32,7 @@ const options = {
   "no-minify": { type: "boolean", default: false },
   "no-compress": { type: "boolean", default: false },
   "filename-prefix": { type: "string", default: "" },
+  meta: { type: "boolean", default: false },
   help: { type: "boolean", short: "h", default: false },
 };
 
@@ -83,6 +84,7 @@ if (values["list-themes"]) {
 }
 
 let inputFile = positionals[0];
+let pickerMeta = null;
 if (!inputFile) {
   if (!process.stdin.isTTY) {
     console.error("Error: input file is required. Usage: claude-replay <input.jsonl> [options]");
@@ -129,6 +131,14 @@ if (!inputFile) {
   } else {
     values.output = uniqueFilename(generatedName);
   }
+
+  pickerMeta = {
+    filename: basename(values.output),
+    title: picked.title || basename(values.output, ".html"),
+    date: picked.modified || new Date().toISOString(),
+    messageCount: picked.messageCount ?? 0,
+    project: projectName,
+  };
 }
 
 if (!existsSync(inputFile)) {
@@ -280,6 +290,13 @@ const html = render(turns, {
 if (values.output) {
   writeFileSync(values.output, html);
   console.error(`Wrote ${values.output} (${turns.length} turns)`);
+
+  // Write sidecar metadata if requested
+  if (values.meta && pickerMeta) {
+    const metaPath = values.output.replace(/\.html$/, ".meta.json");
+    writeFileSync(metaPath, JSON.stringify(pickerMeta, null, 2) + "\n");
+    console.error(`Wrote ${metaPath}`);
+  }
 } else {
   process.stdout.write(html);
 }
