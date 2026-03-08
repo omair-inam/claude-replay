@@ -602,9 +602,8 @@ export async function showPicker(sessions, projectName) {
             ui.row({ gap: 0 }, [
               ui.text(name),
               ui.text(customTitlePart, { fg: YELLOW }),
-              ui.text(summaryPart, { fg: SLATE }),
-              ui.spacer({ flex: 1 }),
-              ui.text(meta, { dim: true }),
+              ui.text(summaryPart, { fg: SLATE, flex: 1, textOverflow: "ellipsis" }),
+              ui.text(` ${meta}`, { dim: true }),
             ]),
             ui.text(`  ${preview}`, { dim: true }),
           ]);
