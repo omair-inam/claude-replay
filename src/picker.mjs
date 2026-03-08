@@ -607,8 +607,9 @@ export async function showPicker(sessions, projectName) {
       ui.virtualList({
         id: "sessions",
         items: filtered,
-        itemHeight: 2,
+        itemHeight: 3,
         keyboardNavigation: false,
+        focusConfig: { indicator: "none" },
         renderItem: (session, index) => {
           const isSel = index === sel;
           const name = session.isWorktree
@@ -624,23 +625,38 @@ export async function showPicker(sessions, projectName) {
             formatDate(session.modified),
           ].join(" · ");
 
-          // Line 2: first real user prompt (preview)
-          const preview = (session.firstPrompt || "").replace(/\n/g, " ").slice(0, 120);
+          // Right-align meta via manual padding (virtualList uses renderVNodeSimple
+          // which has no flex support — spacer/flex children always get 0 width)
+          const availWidth = (process.stdout.columns || 80) - 1; // -1 for pl:1
+          const fixedLen = name.length + customTitlePart.length + meta.length;
+          const summaryBudget = availWidth - fixedLen;
+          let displaySummary;
+          if (summaryBudget <= 0) {
+            displaySummary = "";
+          } else if (summaryPart.length <= summaryBudget) {
+            displaySummary = summaryPart.padEnd(summaryBudget);
+          } else {
+            displaySummary = summaryPart.slice(0, summaryBudget - 1) + "\u2026";
+          }
 
+          // Line 2: first real user prompt (preview)
+          const preview = (session.firstPrompt || "").replace(/\n/g, " ").slice(0, Math.max(0, availWidth - 2));
+
+          const rule = "\u2500".repeat(availWidth);
           return ui.column({ gap: 0, pl: 1, style: isSel ? { bg: rgb(36, 37, 58) } : {} }, [
             ui.row({ gap: 0 }, [
               ui.text(name),
               ui.text(customTitlePart, { fg: YELLOW }),
-              ui.text(summaryPart, { fg: SLATE }),
-              ui.spacer({ flex: 1 }),
+              ui.text(displaySummary, { fg: SLATE }),
               ui.text(meta, { dim: true }),
             ]),
             ui.text(`  ${preview}`, { dim: true }),
+            ui.text(rule, { dim: true }),
           ]);
         },
-        onSelect: (item) => {
-          selected = item;
-          exit();
+        onSelect: (item, index) => {
+          // Click selects the item visually; Enter (in app.keys) confirms
+          app.update((s) => ({ ...s, sel: index }));
         },
       }),
     ]);
