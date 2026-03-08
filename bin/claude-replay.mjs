@@ -80,10 +80,36 @@ if (values["list-themes"]) {
   process.exit(0);
 }
 
-const inputFile = positionals[0];
+let inputFile = positionals[0];
 if (!inputFile) {
-  console.error("Error: input file is required. Usage: claude-replay <input.jsonl> [options]");
-  process.exit(1);
+  if (!process.stdin.isTTY) {
+    console.error("Error: input file is required. Usage: claude-replay <input.jsonl> [options]");
+    process.exit(1);
+  }
+
+  const { discoverSessions, showPicker, generateFilename, uniqueFilename } = await import("../src/picker.mjs");
+  const { sessions, projectName, totalBeforeFilter } = discoverSessions(process.cwd());
+
+  if (sessions.length === 0) {
+    const msg = totalBeforeFilter > 0
+      ? `No sessions found for ${projectName} (${totalBeforeFilter} sessions filtered as empty). Use claude-replay <file.jsonl> to open a specific file.`
+      : `No Claude Code sessions found. Run claude-replay from a project directory that has Claude Code session history.`;
+    console.error(msg);
+    process.exit(1);
+  }
+
+  const picked = await showPicker(sessions, projectName);
+  if (!picked) process.exit(0); // User cancelled with Escape
+
+  inputFile = picked.fullPath;
+
+  // Auto-generate output filename if -o not specified
+  if (!values.output) {
+    const datePrefix = picked.modified
+      ? new Date(picked.modified).toISOString().slice(0, 10)
+      : new Date().toISOString().slice(0, 10);
+    values.output = uniqueFilename(generateFilename(picked.title, datePrefix));
+  }
 }
 
 if (!existsSync(inputFile)) {
