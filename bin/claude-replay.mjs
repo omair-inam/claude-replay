@@ -53,7 +53,7 @@ Convert Claude Code session transcripts into embeddable HTML replays.
 Run with no arguments to launch an interactive session picker.
 
 Options:
-  -o, --output FILE|DIR   Output HTML file or directory (default: stdout)
+  -o, --output FILE|DIR   Output HTML file, or directory when using picker (default: stdout)
   --turns N-M             Only include turns N through M
   --from TIMESTAMP        Start time filter (ISO 8601)
   --to TIMESTAMP          End time filter (ISO 8601)
@@ -72,8 +72,8 @@ Options:
   --no-minify             Use unminified template (default: minified if available)
   --no-compress           Embed raw JSON instead of compressed (for older browsers)
   --list-themes           List available built-in themes and exit
-  --filename-prefix STR   Prefix for auto-generated filenames (default: none)
-  --meta                  Write a .meta.json sidecar with session metadata
+  --filename-prefix STR   Prefix for auto-generated filenames (picker only, default: none)
+  --meta                  Write a .meta.json sidecar with session metadata (picker only)
   -h, --help              Show this help message`);
   process.exit(0);
 }
@@ -293,7 +293,10 @@ if (values.output) {
   writeFileSync(values.output, html);
   console.error(`Wrote ${values.output} (${turns.length} turns)`);
 
-  // Write sidecar metadata if requested
+  // Write sidecar metadata if requested (picker only)
+  if (values.meta && !pickerMeta) {
+    console.error("Warning: --meta only works with the interactive picker");
+  }
   if (values.meta && pickerMeta) {
     const metaPath = values.output.replace(/\.html$/, ".meta.json");
     writeFileSync(metaPath, JSON.stringify(pickerMeta, null, 2) + "\n");
