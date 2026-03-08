@@ -13,6 +13,8 @@ import {
 } from "node:fs";
 import { join, basename } from "node:path";
 import { homedir } from "node:os";
+import { createNodeApp } from "@rezi-ui/node";
+import { ui, rgb } from "@rezi-ui/core";
 
 // ---------------------------------------------------------------------------
 // Task 2: Encode CWD to project directory
@@ -329,4 +331,101 @@ export function discoverSessions(cwd, claudeDir) {
     projectName,
     totalBeforeFilter: filtered.totalBeforeFilter,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Task 11: Interactive session picker TUI
+// ---------------------------------------------------------------------------
+
+const YELLOW = rgb(255, 214, 102);
+const ACCENT = rgb(187, 154, 247);
+
+/**
+ * Show the interactive session picker TUI.
+ * @param {object[]} sessions - Enriched session objects from discoverSessions
+ * @param {string} projectName
+ * @returns {Promise<object|null>} Selected session or null if user cancelled
+ */
+export async function showPicker(sessions, projectName) {
+  let selected = null;
+
+  const app = createNodeApp({
+    initialState: {
+      query: "",
+    },
+  });
+
+  app.view((state) => {
+    const query = state.query.toLowerCase();
+    const filtered = query
+      ? sessions.filter((s) =>
+          (s.title || "").toLowerCase().includes(query) ||
+          (s.summary || "").toLowerCase().includes(query) ||
+          (s.firstPrompt || "").toLowerCase().includes(query)
+        )
+      : sessions;
+
+    const counter = `${filtered.length}/${sessions.length}`;
+
+    return ui.column({ gap: 0, height: "100%" }, [
+      // Search bar
+      ui.row({ gap: 1, items: "center", pb: 1 }, [
+        ui.text("> ", { fg: ACCENT }),
+        ui.input({
+          id: "search",
+          value: state.query,
+          placeholder: "Filter sessions...",
+          onInput: (value) => app.update({ query: value }),
+          focusConfig: { autoFocus: true },
+        }),
+        ui.spacer({ flex: 1 }),
+        ui.text(counter, { dim: true }),
+      ]),
+
+      // Session list
+      ui.virtualList({
+        id: "sessions",
+        items: filtered,
+        flex: 1,
+        keyboardNavigation: true,
+        renderItem: (session, index, focused) => {
+          const name = session.isWorktree
+            ? `${projectName} (wt: ${session.worktreeBranch})`
+            : projectName;
+          const titlePart = session.title
+            ? ` · ${session.title}`
+            : "";
+          const meta = [
+            `${session.messageCount} msgs`,
+            formatDuration(session.durationMs),
+            formatDate(session.modified),
+          ].join(" · ");
+
+          return ui.column({ gap: 0, pl: 1, style: focused ? { bg: rgb(36, 37, 58) } : {} }, [
+            ui.row({ gap: 0 }, [
+              ui.text(name),
+              ui.text(titlePart, { fg: YELLOW }),
+              ui.spacer({ flex: 1 }),
+              ui.text(meta, { dim: true }),
+            ]),
+            ui.text(`  ${(session.firstPrompt || "").slice(0, 120)}`, { dim: true }),
+          ]);
+        },
+        onSelect: (item) => {
+          selected = item;
+          app.stop();
+        },
+      }),
+    ]);
+  });
+
+  app.keys({
+    escape: {
+      sequence: "escape",
+      handler: () => { app.stop(); },
+    },
+  });
+
+  await app.run();
+  return selected;
 }
