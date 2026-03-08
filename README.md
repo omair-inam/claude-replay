@@ -106,6 +106,26 @@ Use `-o` to override the auto-generated filename:
 claude-replay -o my-replay.html
 ```
 
+#### Output Options
+
+When using the picker, `-o` can point to a directory (or path ending with `/`). The picker will generate a filename and write into that directory:
+
+```bash
+claude-replay -o replays/
+```
+
+Use `--filename-prefix` to add a prefix to auto-generated filenames:
+
+```bash
+claude-replay --filename-prefix "replay-" -o replays/
+```
+
+Use `--meta` to write a `.meta.json` sidecar file alongside the HTML with session metadata (title, date, message count, project):
+
+```bash
+claude-replay -o replays/ --meta
+```
+
 ## Usage
 
 ```
@@ -116,7 +136,7 @@ claude-replay <input.jsonl> [options]
 
 | Flag | Description |
 |---|---|
-| `-o, --output FILE` | Output HTML file (default: stdout) |
+| `-o, --output FILE\|DIR` | Output HTML file or directory (default: stdout) |
 | `--turns N-M` | Only include turns N through M |
 | `--from TIMESTAMP` | Start time filter (ISO 8601) |
 | `--to TIMESTAMP` | End time filter (ISO 8601) |
@@ -135,6 +155,8 @@ claude-replay <input.jsonl> [options]
 | `--no-minify` | Use unminified template (default: minified if available) |
 | `--no-compress` | Embed raw JSON instead of compressed data (for older browsers) |
 | `--list-themes` | List available built-in themes and exit |
+| `--filename-prefix STR` | Prefix for auto-generated filenames (default: none) |
+| `--meta` | Write a `.meta.json` sidecar file with session metadata |
 
 ### Examples
 
