@@ -4,7 +4,7 @@
 ![Claude Code](https://img.shields.io/badge/Claude_Code-replay-blue)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![Node.js](https://img.shields.io/badge/node-18%2B-green.svg)
-![Zero Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)
+![Minimal Dependencies](https://img.shields.io/badge/output_dependencies-0-brightgreen)
 
 > Community tool — not affiliated with or endorsed by Anthropic.
 
@@ -82,6 +82,29 @@ claude-replay ~/.cursor/projects/*/agent-transcripts/<id>/<id>.jsonl -o replay.h
 ```
 
 The format is auto-detected. Cursor transcripts don't include timestamps, so playback uses paced timing by default (see [Timing modes](#timing-modes)).
+
+## Interactive session picker
+
+Run `claude-replay` with no arguments to browse your current project's sessions:
+
+```bash
+cd ~/projects/my-project
+claude-replay
+```
+
+This launches an interactive picker showing all Claude Code sessions for the project, sorted newest first. Type to filter, arrow keys to navigate, Enter to select. The replay is generated automatically with an auto-derived filename.
+
+All flags work with the picker — they apply after session selection:
+
+```bash
+claude-replay --theme dracula --speed 2.0 --no-thinking
+```
+
+Use `-o` to override the auto-generated filename:
+
+```bash
+claude-replay -o my-replay.html
+```
 
 ## Usage
 
@@ -312,7 +335,8 @@ One JSON object per line with a top-level `role` field. No timestamps. Thinking 
 ## Requirements
 
 - Node.js 18+
-- Zero runtime dependencies (esbuild is a dev-only dependency for building the minified template)
+- `@rezi-ui/node` — TUI framework for the interactive session picker (installed automatically)
+- Zero runtime dependencies in generated HTML output (esbuild is a dev-only dependency for building the minified template)
 
 ## Privacy
 
