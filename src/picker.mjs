@@ -6,6 +6,7 @@ import {
   readdirSync,
   existsSync,
   readFileSync,
+  statSync,
   openSync,
   readSync,
   fstatSync,
@@ -82,11 +83,142 @@ export function findProjectDirs(cwd, claudeDir) {
 }
 
 // ---------------------------------------------------------------------------
-// Task 4: Load sessions from index files
+// Task 4: Load sessions by scanning .jsonl files
 // ---------------------------------------------------------------------------
 
 /**
- * Load sessions from sessions-index.json files for each project dir.
+ * Test whether a user message string is system noise (not a real user prompt).
+ * @param {string} text
+ * @returns {boolean}
+ */
+function isSystemNoise(text) {
+  if (!text || text.length < 3) return true;
+  if (text.startsWith("<local-command-caveat>")) return true;
+  if (text.startsWith("<local-command-stdout>")) return true;
+  if (text.startsWith("<command-message>")) return true;
+  if (text.startsWith("<command-name>")) return true;
+  if (text.startsWith("<system-reminder>")) return true;
+  if (text.startsWith("<system>")) return true;
+  if (text.startsWith("Warmup")) return true;
+  return false;
+}
+
+/**
+ * Extract the text content from a user message entry.
+ * @param {object} obj - Parsed JSONL entry
+ * @returns {string|null}
+ */
+function extractUserText(obj) {
+  const msg = obj.message?.content;
+  if (typeof msg === "string") return msg;
+  if (Array.isArray(msg)) {
+    const tp = msg.find((p) => p.type === "text");
+    if (tp) return tp.text;
+  }
+  return null;
+}
+
+/**
+ * Read the first 16KB of a JSONL file and return the first non-noise user prompt.
+ * @param {string} fullPath
+ * @returns {string|null}
+ */
+function extractFirstRealPrompt(fullPath) {
+  try {
+    const fd = openSync(fullPath, "r");
+    try {
+      const size = Math.min(fstatSync(fd).size, 16384);
+      const buf = Buffer.alloc(size);
+      readSync(fd, buf, 0, size, 0);
+      for (const line of buf.toString("utf-8").split("\n")) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        try {
+          const obj = JSON.parse(trimmed);
+          if (obj.type === "user" || obj.type === "human") {
+            const text = extractUserText(obj);
+            if (text && !isSystemNoise(text)) return text;
+          }
+        } catch { /* skip */ }
+      }
+    } finally {
+      closeSync(fd);
+    }
+  } catch { /* non-fatal */ }
+  return null;
+}
+
+/**
+ * Extract metadata from a JSONL session file via single-pass parse.
+ * Counts messages using claude-history's rules: skip warmup, empty, system noise,
+ * deduplicate streaming assistant entries by message.id.
+ * @param {string} fullPath
+ * @param {number} fileSize
+ * @returns {{ firstPrompt: string|null, summary: string|null, messageCount: number }|null}
+ */
+function extractFileMetadata(fullPath, fileSize) {
+  if (fileSize === 0) return null;
+
+  let content;
+  try {
+    content = readFileSync(fullPath, "utf-8");
+  } catch {
+    return null;
+  }
+
+  let messageCount = 0;
+  let firstPrompt = null;
+  let summary = null;
+  let seenRealUser = false;
+  let skipNextAssistant = false;
+  const seenAsstIds = new Set();
+
+  let pos = 0;
+  while (pos < content.length) {
+    const nl = content.indexOf("\n", pos);
+    const end = nl === -1 ? content.length : nl;
+    const line = content.substring(pos, end);
+    pos = end + 1;
+    if (line.length < 3) continue;
+
+    let obj;
+    try { obj = JSON.parse(line); } catch { continue; }
+
+    if (obj.type === "user" || obj.type === "human") {
+      const text = extractUserText(obj);
+      if (!text || text.trim().length === 0) continue;
+      if (text === "Warmup" || text.startsWith("Warmup")) {
+        skipNextAssistant = true;
+        continue;
+      }
+      if (isSystemNoise(text)) continue;
+      messageCount++;
+      seenRealUser = true;
+      if (!firstPrompt) firstPrompt = text;
+    } else if (obj.type === "assistant") {
+      if (skipNextAssistant) { skipNextAssistant = false; continue; }
+      if (!seenRealUser) continue;
+      const msgId = obj.message?.id;
+      if (msgId) {
+        if (seenAsstIds.has(msgId)) continue;
+        seenAsstIds.add(msgId);
+      }
+      const c = obj.message?.content;
+      if (!c || (Array.isArray(c) && c.length === 0)) continue;
+      messageCount++;
+    } else if (obj.type === "summary" && obj.summary) {
+      summary = obj.summary;
+    }
+  }
+
+  if (messageCount === 0 && !firstPrompt) return null;
+  return { firstPrompt, summary, messageCount };
+}
+
+/**
+ * Load sessions by scanning .jsonl files in each project dir.
+ * Uses sessions-index.json as supplementary metadata when available.
+ * Excludes agent-*.jsonl subconversation files.
  * @param {{ path: string, dirName: string, isWorktree: boolean, worktreeBranch: string|null }[]} projectDirs
  * @returns {object[]}
  */
@@ -94,24 +226,63 @@ export function loadSessions(projectDirs) {
   const sessions = [];
 
   for (const pd of projectDirs) {
+    // Build index lookup for metadata enrichment
+    const indexMap = new Map();
     const indexPath = join(pd.path, "sessions-index.json");
-    if (!existsSync(indexPath)) continue;
-
-    let data;
-    try {
-      data = JSON.parse(readFileSync(indexPath, "utf-8"));
-    } catch {
-      continue;
+    if (existsSync(indexPath)) {
+      try {
+        const data = JSON.parse(readFileSync(indexPath, "utf-8"));
+        if (Array.isArray(data.entries)) {
+          for (const entry of data.entries) {
+            indexMap.set(entry.sessionId, entry);
+          }
+        }
+      } catch { /* ignore corrupt index */ }
     }
 
-    if (!data.entries || !Array.isArray(data.entries)) continue;
+    // Scan for .jsonl files — the authoritative source of sessions
+    let dirEntries;
+    try {
+      dirEntries = readdirSync(pd.path, { withFileTypes: true });
+    } catch { continue; }
 
-    for (const entry of data.entries) {
-      sessions.push({
-        ...entry,
-        isWorktree: pd.isWorktree,
-        worktreeBranch: pd.worktreeBranch,
-      });
+    for (const dirEntry of dirEntries) {
+      if (!dirEntry.isFile()) continue;
+      if (!dirEntry.name.endsWith(".jsonl") || dirEntry.name.startsWith("agent-")) continue;
+
+      const fullPath = join(pd.path, dirEntry.name);
+      const sessionId = dirEntry.name.slice(0, -6); // strip .jsonl
+      const indexEntry = indexMap.get(sessionId);
+
+      if (indexEntry) {
+        // Use index metadata, override fullPath with actual file location
+        sessions.push({
+          ...indexEntry,
+          fullPath,
+          isWorktree: pd.isWorktree,
+          worktreeBranch: pd.worktreeBranch,
+        });
+      } else {
+        // Extract metadata directly from the file
+        let fileStat;
+        try { fileStat = statSync(fullPath); } catch { continue; }
+
+        const meta = extractFileMetadata(fullPath, fileStat.size);
+        if (!meta) continue;
+
+        sessions.push({
+          sessionId,
+          fullPath,
+          summary: meta.summary,
+          firstPrompt: meta.firstPrompt,
+          messageCount: meta.messageCount,
+          created: fileStat.birthtime.toISOString(),
+          modified: fileStat.mtime.toISOString(),
+          gitBranch: null,
+          isWorktree: pd.isWorktree,
+          worktreeBranch: pd.worktreeBranch,
+        });
+      }
     }
   }
 
@@ -197,6 +368,7 @@ export function resolveTitle(session) {
 export function filterSessions(sessions) {
   const total = sessions.length;
   const filtered = sessions.filter((s) => {
+    if (s.fullPath && !existsSync(s.fullPath)) return false;
     if ((s.messageCount ?? 0) <= 2) return false;
     if (!s.customTitle && s.summary && SKIP_SUMMARY_PATTERNS.some((p) => p.test(s.summary))) return false;
     return true;
@@ -306,7 +478,7 @@ export function discoverSessions(cwd, claudeDir) {
 
   const raw = loadSessions(projectDirs);
 
-  // Enrich with custom titles
+  // Enrich with custom titles and clean up firstPrompt noise
   for (const session of raw) {
     session.customTitle = existsSync(session.fullPath)
       ? extractCustomTitle(session.fullPath)
@@ -315,6 +487,10 @@ export function discoverSessions(cwd, claudeDir) {
     session.durationMs = session.modified && session.created
       ? new Date(session.modified).getTime() - new Date(session.created).getTime()
       : 0;
+    // If firstPrompt is system noise, extract a real one from file head
+    if (isSystemNoise(session.firstPrompt) && existsSync(session.fullPath)) {
+      session.firstPrompt = extractFirstRealPrompt(session.fullPath);
+    }
   }
 
   const filtered = filterSessions(raw);
@@ -338,6 +514,7 @@ export function discoverSessions(cwd, claudeDir) {
 // ---------------------------------------------------------------------------
 
 const YELLOW = rgb(255, 214, 102);
+const SLATE = rgb(140, 155, 175);
 const ACCENT = rgb(187, 154, 247);
 
 /**
@@ -355,7 +532,7 @@ export async function showPicker(sessions, projectName) {
     },
   });
 
-  const exit = () => { app.stop(); app.dispose(); };
+  const exit = () => { app.stop(); };
 
   // Build key handlers: printable chars → query, backspace → delete, escape → exit
   // virtualList handles arrow keys, Enter, page up/down natively
@@ -381,7 +558,7 @@ export async function showPicker(sessions, projectName) {
     const query = state.query.toLowerCase();
     const filtered = query
       ? sessions.filter((s) =>
-          (s.title || "").toLowerCase().includes(query) ||
+          (s.customTitle || "").toLowerCase().includes(query) ||
           (s.summary || "").toLowerCase().includes(query) ||
           (s.firstPrompt || "").toLowerCase().includes(query)
         )
@@ -403,25 +580,33 @@ export async function showPicker(sessions, projectName) {
         items: filtered,
         itemHeight: 2,
         keyboardNavigation: true,
+        focusConfig: { autoFocus: true },
         renderItem: (session, index, focused) => {
           const name = session.isWorktree
             ? `${projectName} (wt: ${session.worktreeBranch})`
             : projectName;
-          const titlePart = session.title ? ` · ${session.title}` : "";
+          // Line 1: project · customTitle · summary  |  meta
+          const customTitlePart = session.customTitle ? ` · ${session.customTitle}` : "";
+          const summaryPart = session.summary && session.summary !== session.customTitle
+            ? ` · ${session.summary}` : "";
           const meta = [
             `${session.messageCount} msgs`,
             formatDuration(session.durationMs),
             formatDate(session.modified),
           ].join(" · ");
 
+          // Line 2: first real user prompt (preview)
+          const preview = (session.firstPrompt || "").replace(/\n/g, " ").slice(0, 120);
+
           return ui.column({ gap: 0, pl: 1, style: focused ? { bg: rgb(36, 37, 58) } : {} }, [
             ui.row({ gap: 0 }, [
               ui.text(name),
-              ui.text(titlePart, { fg: YELLOW }),
+              ui.text(customTitlePart, { fg: YELLOW }),
+              ui.text(summaryPart, { fg: SLATE }),
               ui.spacer({ flex: 1 }),
               ui.text(meta, { dim: true }),
             ]),
-            ui.text(`  ${(session.firstPrompt || "").slice(0, 120)}`, { dim: true }),
+            ui.text(`  ${preview}`, { dim: true }),
           ]);
         },
         onSelect: (item) => {

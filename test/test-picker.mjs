@@ -100,24 +100,30 @@ describe("findProjectDirs", () => {
 // ---------------------------------------------------------------------------
 
 describe("loadSessions", () => {
-  it("loads sessions from sessions-index.json", () => {
-    const { base, projects } = makeTempClaudeDir();
+  it("uses index metadata when .jsonl file and index entry both exist", () => {
+    const { projects } = makeTempClaudeDir();
     const dir = join(projects, "-Users-omair-projects-foo");
     mkdirSync(dir);
+
+    // Create the actual JSONL file
+    writeFileSync(join(dir, "abc-123.jsonl"), [
+      JSON.stringify({ type: "user", message: { content: "Add login flow" } }),
+      JSON.stringify({ type: "assistant", message: { content: [{ type: "text", text: "Sure" }] } }),
+    ].join("\n"));
+
+    // Create index with richer metadata
     writeFileSync(join(dir, "sessions-index.json"), JSON.stringify({
       version: 1,
-      entries: [
-        {
-          sessionId: "abc-123",
-          fullPath: "/path/to/abc-123.jsonl",
-          summary: "Built auth system",
-          firstPrompt: "Add login flow",
-          messageCount: 25,
-          created: "2026-03-01T10:00:00Z",
-          modified: "2026-03-01T12:30:00Z",
-          gitBranch: "main",
-        },
-      ],
+      entries: [{
+        sessionId: "abc-123",
+        fullPath: join(dir, "abc-123.jsonl"),
+        summary: "Built auth system",
+        firstPrompt: "Add login flow",
+        messageCount: 25,
+        created: "2026-03-01T10:00:00Z",
+        modified: "2026-03-01T12:30:00Z",
+        gitBranch: "main",
+      }],
     }));
 
     const sessions = loadSessions([{
@@ -130,26 +136,66 @@ describe("loadSessions", () => {
     assert.equal(sessions.length, 1);
     assert.equal(sessions[0].sessionId, "abc-123");
     assert.equal(sessions[0].summary, "Built auth system");
+    assert.equal(sessions[0].fullPath, join(dir, "abc-123.jsonl"));
     assert.equal(sessions[0].isWorktree, false);
   });
 
-  it("tags worktree sessions with branch name", () => {
-    const { base, projects } = makeTempClaudeDir();
+  it("discovers .jsonl files not in the index", () => {
+    const { projects } = makeTempClaudeDir();
+    const dir = join(projects, "-Users-omair-projects-foo");
+    mkdirSync(dir);
+
+    // No index — just a JSONL file
+    writeFileSync(join(dir, "def-456.jsonl"), [
+      JSON.stringify({ type: "user", message: { content: "Hello world" } }),
+      JSON.stringify({ type: "assistant", message: { content: [{ type: "text", text: "Hi" }] } }),
+    ].join("\n"));
+
+    const sessions = loadSessions([{
+      path: dir,
+      dirName: "-Users-omair-projects-foo",
+      isWorktree: false,
+      worktreeBranch: null,
+    }]);
+
+    assert.equal(sessions.length, 1);
+    assert.equal(sessions[0].sessionId, "def-456");
+    assert.equal(sessions[0].firstPrompt, "Hello world");
+    assert.equal(sessions[0].messageCount, 2);
+  });
+
+  it("skips agent-*.jsonl files", () => {
+    const { projects } = makeTempClaudeDir();
+    const dir = join(projects, "-Users-omair-projects-foo");
+    mkdirSync(dir);
+
+    writeFileSync(join(dir, "main-session.jsonl"), [
+      JSON.stringify({ type: "user", message: { content: "Fix the login bug" } }),
+    ].join("\n"));
+    writeFileSync(join(dir, "agent-sub-1.jsonl"), [
+      JSON.stringify({ type: "user", message: { content: "Sub-agent task" } }),
+    ].join("\n"));
+
+    const sessions = loadSessions([{
+      path: dir,
+      dirName: "-Users-omair-projects-foo",
+      isWorktree: false,
+      worktreeBranch: null,
+    }]);
+
+    assert.equal(sessions.length, 1);
+    assert.equal(sessions[0].sessionId, "main-session");
+  });
+
+  it("tags worktree sessions", () => {
+    const { projects } = makeTempClaudeDir();
     const dir = join(projects, "-Users-omair-projects-foo--worktrees-feat-x");
     mkdirSync(dir);
-    writeFileSync(join(dir, "sessions-index.json"), JSON.stringify({
-      version: 1,
-      entries: [{
-        sessionId: "wt-1",
-        fullPath: "/path/to/wt-1.jsonl",
-        summary: "Worktree work",
-        firstPrompt: "Fix bug",
-        messageCount: 10,
-        created: "2026-03-02T09:00:00Z",
-        modified: "2026-03-02T09:30:00Z",
-        gitBranch: "feat-x",
-      }],
-    }));
+
+    writeFileSync(join(dir, "wt-1.jsonl"), [
+      JSON.stringify({ type: "user", message: { content: "Fix bug" } }),
+      JSON.stringify({ type: "assistant", message: { content: [{ type: "text", text: "On it" }] } }),
+    ].join("\n"));
 
     const sessions = loadSessions([{
       path: dir,
@@ -163,11 +209,10 @@ describe("loadSessions", () => {
     assert.equal(sessions[0].worktreeBranch, "feat-x");
   });
 
-  it("returns empty array for missing index file", () => {
-    const { base, projects } = makeTempClaudeDir();
+  it("returns empty array when no .jsonl files exist", () => {
+    const { projects } = makeTempClaudeDir();
     const dir = join(projects, "-Users-omair-projects-foo");
     mkdirSync(dir);
-    // No sessions-index.json
 
     const sessions = loadSessions([{
       path: dir,
@@ -245,7 +290,7 @@ describe("filterSessions", () => {
   const makeSessions = (overrides) =>
     overrides.map((o, i) => ({
       sessionId: `s${i}`,
-      fullPath: `/path/s${i}.jsonl`,
+      fullPath: null,
       summary: "Good session",
       firstPrompt: "Do something",
       messageCount: 10,
@@ -291,6 +336,16 @@ describe("filterSessions", () => {
     ]);
     const result = filterSessions(sessions);
     assert.equal(result.length, 1);
+  });
+
+  it("filters out sessions whose JSONL file does not exist", () => {
+    const sessions = makeSessions([
+      { fullPath: "/nonexistent/missing.jsonl", messageCount: 10 },
+      { fullPath: null, messageCount: 10 },
+    ]);
+    const result = filterSessions(sessions);
+    assert.equal(result.length, 1);
+    assert.equal(result[0].fullPath, null);
   });
 });
 
