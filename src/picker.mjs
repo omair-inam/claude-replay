@@ -355,6 +355,15 @@ export async function showPicker(sessions, projectName) {
     },
   });
 
+  const exit = () => { app.stop(); app.dispose(); };
+
+  app.keys({
+    escape: {
+      sequence: "escape",
+      handler: () => { exit(); },
+    },
+  });
+
   app.view((state) => {
     const query = state.query.toLowerCase();
     const filtered = query
@@ -367,8 +376,7 @@ export async function showPicker(sessions, projectName) {
 
     const counter = `${filtered.length}/${sessions.length}`;
 
-    return ui.column({ gap: 0, height: "100%" }, [
-      // Search bar
+    return ui.column({ gap: 0 }, [
       ui.row({ gap: 1, items: "center", pb: 1 }, [
         ui.text("> ", { fg: ACCENT }),
         ui.input({
@@ -381,20 +389,16 @@ export async function showPicker(sessions, projectName) {
         ui.spacer({ flex: 1 }),
         ui.text(counter, { dim: true }),
       ]),
-
-      // Session list
       ui.virtualList({
         id: "sessions",
         items: filtered,
-        flex: 1,
+        itemHeight: 2,
         keyboardNavigation: true,
         renderItem: (session, index, focused) => {
           const name = session.isWorktree
             ? `${projectName} (wt: ${session.worktreeBranch})`
             : projectName;
-          const titlePart = session.title
-            ? ` · ${session.title}`
-            : "";
+          const titlePart = session.title ? ` · ${session.title}` : "";
           const meta = [
             `${session.messageCount} msgs`,
             formatDuration(session.durationMs),
@@ -413,17 +417,10 @@ export async function showPicker(sessions, projectName) {
         },
         onSelect: (item) => {
           selected = item;
-          app.stop();
+          exit();
         },
       }),
     ]);
-  });
-
-  app.keys({
-    escape: {
-      sequence: "escape",
-      handler: () => { app.stop(); },
-    },
   });
 
   await app.run();
