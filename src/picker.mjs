@@ -529,41 +529,70 @@ export async function showPicker(sessions, projectName) {
   const app = createNodeApp({
     initialState: {
       query: "",
+      sel: 0,
     },
   });
 
   const exit = () => { app.stop(); };
 
-  // Build key handlers: printable chars → query, backspace → delete, escape → exit
-  // virtualList handles arrow keys, Enter, page up/down natively
+  // Compute filtered sessions from state (shared by handlers and view)
+  const getFiltered = (state) => {
+    const q = state.query.toLowerCase();
+    return q
+      ? sessions.filter((s) =>
+          (s.customTitle || "").toLowerCase().includes(q) ||
+          (s.summary || "").toLowerCase().includes(q) ||
+          (s.firstPrompt || "").toLowerCase().includes(q)
+        )
+      : sessions;
+  };
+
+  // All keyboard input handled at app level (no reliance on widget focus)
+  const PAGE_SIZE = 10;
   const keyHandlers = {
     escape: { handler: () => { exit(); } },
-    backspace: { handler: (ctx) => ctx.update((s) => ({ ...s, query: s.query.slice(0, -1) })) },
-    space: { handler: (ctx) => ctx.update((s) => ({ ...s, query: s.query + " " })) },
+    backspace: { handler: (ctx) => ctx.update((s) => ({ ...s, query: s.query.slice(0, -1), sel: 0 })) },
+    space: { handler: (ctx) => ctx.update((s) => ({ ...s, query: s.query + " ", sel: 0 })) },
+    up: { handler: (ctx) => ctx.update((s) => ({ ...s, sel: Math.max(0, s.sel - 1) })) },
+    down: { handler: (ctx) => {
+      const count = getFiltered(ctx.state).length;
+      ctx.update((s) => ({ ...s, sel: Math.min(count - 1, s.sel + 1) }));
+    }},
+    pageup: { handler: (ctx) => ctx.update((s) => ({ ...s, sel: Math.max(0, s.sel - PAGE_SIZE) })) },
+    pagedown: { handler: (ctx) => {
+      const count = getFiltered(ctx.state).length;
+      ctx.update((s) => ({ ...s, sel: Math.min(count - 1, s.sel + PAGE_SIZE) }));
+    }},
+    home: { handler: (ctx) => ctx.update((s) => ({ ...s, sel: 0 })) },
+    end: { handler: (ctx) => {
+      const count = getFiltered(ctx.state).length;
+      ctx.update((s) => ({ ...s, sel: Math.max(0, count - 1) }));
+    }},
+    enter: { handler: (ctx) => {
+      const filtered = getFiltered(ctx.state);
+      if (filtered.length > 0) {
+        selected = filtered[ctx.state.sel];
+        exit();
+      }
+    }},
   };
   for (let c = 97; c <= 122; c++) {
     const ch = String.fromCharCode(c);
-    keyHandlers[ch] = { handler: (ctx) => ctx.update((s) => ({ ...s, query: s.query + ch })) };
+    keyHandlers[ch] = { handler: (ctx) => ctx.update((s) => ({ ...s, query: s.query + ch, sel: 0 })) };
   }
   for (let c = 48; c <= 57; c++) {
     const ch = String.fromCharCode(c);
-    keyHandlers[ch] = { handler: (ctx) => ctx.update((s) => ({ ...s, query: s.query + ch })) };
+    keyHandlers[ch] = { handler: (ctx) => ctx.update((s) => ({ ...s, query: s.query + ch, sel: 0 })) };
   }
   for (const ch of "-_./:@#") {
-    keyHandlers[ch] = { handler: (ctx) => ctx.update((s) => ({ ...s, query: s.query + ch })) };
+    keyHandlers[ch] = { handler: (ctx) => ctx.update((s) => ({ ...s, query: s.query + ch, sel: 0 })) };
   }
   app.keys(keyHandlers);
 
   app.view((state) => {
-    const query = state.query.toLowerCase();
-    const filtered = query
-      ? sessions.filter((s) =>
-          (s.customTitle || "").toLowerCase().includes(query) ||
-          (s.summary || "").toLowerCase().includes(query) ||
-          (s.firstPrompt || "").toLowerCase().includes(query)
-        )
-      : sessions;
-
+    const filtered = getFiltered(state);
+    // Clamp sel in case filtered list shrank
+    const sel = Math.min(state.sel, Math.max(0, filtered.length - 1));
     const counter = `${filtered.length}/${sessions.length}`;
 
     return ui.column({ gap: 0 }, [
@@ -579,9 +608,9 @@ export async function showPicker(sessions, projectName) {
         id: "sessions",
         items: filtered,
         itemHeight: 2,
-        keyboardNavigation: true,
-        focusConfig: { autoFocus: true },
-        renderItem: (session, index, focused) => {
+        keyboardNavigation: false,
+        renderItem: (session, index) => {
+          const isSel = index === sel;
           const name = session.isWorktree
             ? `${projectName} (wt: ${session.worktreeBranch})`
             : projectName;
@@ -598,12 +627,13 @@ export async function showPicker(sessions, projectName) {
           // Line 2: first real user prompt (preview)
           const preview = (session.firstPrompt || "").replace(/\n/g, " ").slice(0, 120);
 
-          return ui.column({ gap: 0, pl: 1, style: focused ? { bg: rgb(36, 37, 58) } : {} }, [
+          return ui.column({ gap: 0, pl: 1, style: isSel ? { bg: rgb(36, 37, 58) } : {} }, [
             ui.row({ gap: 0 }, [
               ui.text(name),
               ui.text(customTitlePart, { fg: YELLOW }),
-              ui.text(summaryPart, { fg: SLATE, flex: 1, textOverflow: "ellipsis" }),
-              ui.text(` ${meta}`, { dim: true }),
+              ui.text(summaryPart, { fg: SLATE }),
+              ui.spacer({ flex: 1 }),
+              ui.text(meta, { dim: true }),
             ]),
             ui.text(`  ${preview}`, { dim: true }),
           ]);
