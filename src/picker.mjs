@@ -357,12 +357,25 @@ export async function showPicker(sessions, projectName) {
 
   const exit = () => { app.stop(); app.dispose(); };
 
-  app.keys({
-    escape: {
-      sequence: "escape",
-      handler: () => { exit(); },
-    },
-  });
+  // Build key handlers: printable chars → query, backspace → delete, escape → exit
+  // virtualList handles arrow keys, Enter, page up/down natively
+  const keyHandlers = {
+    escape: { handler: () => { exit(); } },
+    backspace: { handler: (ctx) => ctx.update((s) => ({ ...s, query: s.query.slice(0, -1) })) },
+    space: { handler: (ctx) => ctx.update((s) => ({ ...s, query: s.query + " " })) },
+  };
+  for (let c = 97; c <= 122; c++) {
+    const ch = String.fromCharCode(c);
+    keyHandlers[ch] = { handler: (ctx) => ctx.update((s) => ({ ...s, query: s.query + ch })) };
+  }
+  for (let c = 48; c <= 57; c++) {
+    const ch = String.fromCharCode(c);
+    keyHandlers[ch] = { handler: (ctx) => ctx.update((s) => ({ ...s, query: s.query + ch })) };
+  }
+  for (const ch of "-_./:@#") {
+    keyHandlers[ch] = { handler: (ctx) => ctx.update((s) => ({ ...s, query: s.query + ch })) };
+  }
+  app.keys(keyHandlers);
 
   app.view((state) => {
     const query = state.query.toLowerCase();
@@ -379,13 +392,9 @@ export async function showPicker(sessions, projectName) {
     return ui.column({ gap: 0 }, [
       ui.row({ gap: 1, items: "center", pb: 1 }, [
         ui.text("> ", { fg: ACCENT }),
-        ui.input({
-          id: "search",
-          value: state.query,
-          placeholder: "Filter sessions...",
-          onInput: (value) => app.update({ query: value }),
-          focusConfig: { autoFocus: true },
-        }),
+        state.query
+          ? ui.text(`${state.query}█`)
+          : ui.text("Filter sessions...", { dim: true }),
         ui.spacer({ flex: 1 }),
         ui.text(counter, { dim: true }),
       ]),
