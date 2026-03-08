@@ -11,7 +11,7 @@ import {
   fstatSync,
   closeSync,
 } from "node:fs";
-import { join } from "node:path";
+import { join, basename } from "node:path";
 import { homedir } from "node:os";
 
 // ---------------------------------------------------------------------------
@@ -268,4 +268,65 @@ export function uniqueFilename(filename) {
   let i = 2;
   while (existsSync(`${base}-${i}.html`)) i++;
   return `${base}-${i}.html`;
+}
+
+// ---------------------------------------------------------------------------
+// Task 10: Session discovery orchestrator
+// ---------------------------------------------------------------------------
+
+/**
+ * Decode an encoded project dir name to a human-readable project name.
+ * -Users-omair-projects-foo → foo
+ * @param {string} encoded
+ * @returns {string}
+ */
+export function decodeProjectName(encoded) {
+  const stripped = encoded.replace(/^-+/, "");
+  const parts = stripped.split("-");
+  if (parts.length >= 4) {
+    return parts.slice(3).join("-");
+  }
+  return parts[parts.length - 1] || stripped;
+}
+
+/**
+ * Discover all sessions for the current project.
+ * Finds project dirs, loads index, enriches with custom titles, filters, sorts.
+ * @param {string} cwd
+ * @param {string} [claudeDir]
+ * @returns {{ sessions: object[], projectName: string, totalBeforeFilter: number }}
+ */
+export function discoverSessions(cwd, claudeDir) {
+  const projectDirs = findProjectDirs(cwd, claudeDir);
+  const projectName = projectDirs.length > 0
+    ? decodeProjectName(projectDirs.find((d) => !d.isWorktree)?.dirName || projectDirs[0].dirName)
+    : basename(cwd);
+
+  const raw = loadSessions(projectDirs);
+
+  // Enrich with custom titles
+  for (const session of raw) {
+    session.customTitle = existsSync(session.fullPath)
+      ? extractCustomTitle(session.fullPath)
+      : null;
+    session.title = resolveTitle(session);
+    session.durationMs = session.modified && session.created
+      ? new Date(session.modified).getTime() - new Date(session.created).getTime()
+      : 0;
+  }
+
+  const filtered = filterSessions(raw);
+
+  // Sort by modified descending (newest first)
+  filtered.sort((a, b) => {
+    const tA = a.modified ? new Date(a.modified).getTime() : 0;
+    const tB = b.modified ? new Date(b.modified).getTime() : 0;
+    return tB - tA;
+  });
+
+  return {
+    sessions: filtered,
+    projectName,
+    totalBeforeFilter: filtered.totalBeforeFilter,
+  };
 }

@@ -12,6 +12,7 @@ import { resolveTitle } from "../src/picker.mjs";
 import { filterSessions } from "../src/picker.mjs";
 import { formatDuration, formatDate } from "../src/picker.mjs";
 import { generateFilename, uniqueFilename } from "../src/picker.mjs";
+import { discoverSessions } from "../src/picker.mjs";
 
 // ---------------------------------------------------------------------------
 // Shared helper
@@ -355,5 +356,75 @@ describe("uniqueFilename", () => {
     const file = join(dir, "replay.html");
     writeFileSync(file, "");
     assert.equal(uniqueFilename(file), join(dir, "replay-2.html"));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 10: discoverSessions
+// ---------------------------------------------------------------------------
+
+describe("discoverSessions", () => {
+  it("discovers, enriches, filters, and sorts sessions", () => {
+    const { base, projects } = makeTempClaudeDir();
+    const dir = join(projects, "-Users-omair-projects-foo");
+    mkdirSync(dir);
+
+    // Write index with two sessions
+    writeFileSync(join(dir, "sessions-index.json"), JSON.stringify({
+      version: 1,
+      entries: [
+        {
+          sessionId: "old",
+          fullPath: join(dir, "old.jsonl"),
+          summary: "Old session",
+          firstPrompt: "First thing",
+          messageCount: 10,
+          created: "2026-03-01T10:00:00Z",
+          modified: "2026-03-01T12:00:00Z",
+          gitBranch: "main",
+        },
+        {
+          sessionId: "new",
+          fullPath: join(dir, "new.jsonl"),
+          summary: "New session",
+          firstPrompt: "Second thing",
+          messageCount: 20,
+          created: "2026-03-05T10:00:00Z",
+          modified: "2026-03-05T14:00:00Z",
+          gitBranch: "main",
+        },
+        {
+          sessionId: "empty",
+          fullPath: join(dir, "empty.jsonl"),
+          summary: "User Exited Claude Code Session",
+          firstPrompt: "",
+          messageCount: 1,
+          created: "2026-03-06T10:00:00Z",
+          modified: "2026-03-06T10:00:00Z",
+          gitBranch: "main",
+        },
+      ],
+    }));
+
+    // Write JSONL files (new.jsonl has a custom title)
+    writeFileSync(join(dir, "old.jsonl"), JSON.stringify({ type: "user", message: { content: "hi" } }));
+    writeFileSync(join(dir, "new.jsonl"), [
+      JSON.stringify({ type: "user", message: { content: "hi" } }),
+      JSON.stringify({ type: "custom-title", customTitle: "My Custom Title", sessionId: "new" }),
+    ].join("\n"));
+    writeFileSync(join(dir, "empty.jsonl"), JSON.stringify({ type: "user", message: { content: "" } }));
+
+    const result = discoverSessions("/Users/omair/projects/foo", join(base, ".claude"));
+
+    // empty session should be filtered out
+    assert.equal(result.sessions.length, 2);
+    // Newest first
+    assert.equal(result.sessions[0].sessionId, "new");
+    assert.equal(result.sessions[1].sessionId, "old");
+    // Custom title resolved
+    assert.equal(result.sessions[0].title, "My Custom Title");
+    assert.equal(result.sessions[1].title, "Old session");
+    // Project name decoded
+    assert.equal(result.projectName, "foo");
   });
 });
