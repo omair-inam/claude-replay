@@ -388,14 +388,14 @@ describe("generateFilename", () => {
   it("generates slug from title and date", () => {
     assert.equal(
       generateFilename("Image Attribution Implementation", "2026-03-07"),
-      "replay-2026-03-07-image-attribution-implementation.html"
+      "2026-03-07-image-attribution-implementation.html"
     );
   });
 
   it("strips non-alphanumeric characters", () => {
     assert.equal(
       generateFilename("Fix: login bug (#42)", "2026-03-07"),
-      "replay-2026-03-07-fix-login-bug-42.html"
+      "2026-03-07-fix-login-bug-42.html"
     );
   });
 
@@ -408,7 +408,21 @@ describe("generateFilename", () => {
   it("uses 'session' when title is null", () => {
     assert.equal(
       generateFilename(null, "2026-03-07"),
-      "replay-2026-03-07-session.html"
+      "2026-03-07-session.html"
+    );
+  });
+
+  it("uses custom prefix when provided", () => {
+    assert.equal(
+      generateFilename("my session", "2026-03-07", "custom-"),
+      "custom-2026-03-07-my-session.html"
+    );
+  });
+
+  it("uses no prefix when empty string passed", () => {
+    assert.equal(
+      generateFilename("my session", "2026-03-07", ""),
+      "2026-03-07-my-session.html"
     );
   });
 });

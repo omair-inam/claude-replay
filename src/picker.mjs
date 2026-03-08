@@ -418,9 +418,10 @@ export function formatDate(isoString) {
  * Generate an output filename from a session title and date.
  * @param {string|null} title
  * @param {string} datePrefix - YYYY-MM-DD format
+ * @param {string} [prefix=""] - Filename prefix (e.g., "replay-")
  * @returns {string}
  */
-export function generateFilename(title, datePrefix) {
+export function generateFilename(title, datePrefix, prefix = "") {
   const slug = (title || "session")
     .toLowerCase()
     .replace(/[^a-z0-9\s-]/g, "")
@@ -428,7 +429,7 @@ export function generateFilename(title, datePrefix) {
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "")
     .slice(0, 60);
-  return `replay-${datePrefix}-${slug}.html`;
+  return `${prefix}${datePrefix}-${slug}.html`;
 }
 
 /**
