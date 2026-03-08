@@ -5,8 +5,8 @@
  */
 
 import { parseArgs } from "node:util";
-import { basename, dirname } from "node:path";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
+import { existsSync, readFileSync, writeFileSync, statSync, mkdirSync } from "node:fs";
 import { parseTranscript, filterTurns, detectFormat, applyPacedTiming } from "../src/parser.mjs";
 import { render } from "../src/renderer.mjs";
 import { getTheme, loadThemeFile, listThemes } from "../src/themes.mjs";
@@ -105,13 +105,29 @@ if (!inputFile) {
 
   inputFile = picked.fullPath;
 
-  // Auto-generate output filename if -o not specified
-  if (!values.output) {
-    const datePrefix = picked.modified
-      ? new Date(picked.modified).toISOString().slice(0, 10)
-      : new Date().toISOString().slice(0, 10);
-    const prefix = values["filename-prefix"];
-    values.output = uniqueFilename(generateFilename(picked.title, datePrefix, prefix));
+  // Auto-generate output filename
+  const datePrefix = picked.modified
+    ? new Date(picked.modified).toISOString().slice(0, 10)
+    : new Date().toISOString().slice(0, 10);
+  const prefix = values["filename-prefix"];
+  const generatedName = generateFilename(picked.title, datePrefix, prefix);
+
+  if (values.output) {
+    // If -o is a directory, write into it with the generated filename
+    let isDir = false;
+    try {
+      isDir = statSync(values.output).isDirectory();
+    } catch {
+      isDir = values.output.endsWith("/");
+    }
+    if (isDir) {
+      if (!existsSync(values.output)) {
+        mkdirSync(values.output, { recursive: true });
+      }
+      values.output = uniqueFilename(join(values.output, generatedName));
+    }
+  } else {
+    values.output = uniqueFilename(generatedName);
   }
 }
 
