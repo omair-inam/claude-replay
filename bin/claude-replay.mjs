@@ -31,6 +31,7 @@ const options = {
   bookmarks: { type: "string" },
   "no-minify": { type: "boolean", default: false },
   "no-compress": { type: "boolean", default: false },
+  "filename-prefix": { type: "string", default: "" },
   help: { type: "boolean", short: "h", default: false },
 };
 
@@ -109,7 +110,8 @@ if (!inputFile) {
     const datePrefix = picked.modified
       ? new Date(picked.modified).toISOString().slice(0, 10)
       : new Date().toISOString().slice(0, 10);
-    values.output = uniqueFilename(generateFilename(picked.title, datePrefix));
+    const prefix = values["filename-prefix"];
+    values.output = uniqueFilename(generateFilename(picked.title, datePrefix, prefix));
   }
 }
 
