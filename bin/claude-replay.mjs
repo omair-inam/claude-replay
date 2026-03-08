@@ -45,9 +45,10 @@ try {
 const { values, positionals } = parsed;
 
 if (values.help) {
-  console.log(`Usage: claude-replay <input.jsonl> [options]
+  console.log(`Usage: claude-replay [input.jsonl] [options]
 
 Convert Claude Code session transcripts into embeddable HTML replays.
+Run with no arguments to launch an interactive session picker.
 
 Options:
   -o, --output FILE       Output HTML file (default: stdout)

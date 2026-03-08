@@ -4,15 +4,19 @@ import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
-import { encodeProjectDir } from "../src/picker.mjs";
-import { findProjectDirs } from "../src/picker.mjs";
-import { loadSessions } from "../src/picker.mjs";
-import { extractCustomTitle } from "../src/picker.mjs";
-import { resolveTitle } from "../src/picker.mjs";
-import { filterSessions } from "../src/picker.mjs";
-import { formatDuration, formatDate } from "../src/picker.mjs";
-import { generateFilename, uniqueFilename } from "../src/picker.mjs";
-import { discoverSessions } from "../src/picker.mjs";
+import {
+  encodeProjectDir,
+  findProjectDirs,
+  loadSessions,
+  extractCustomTitle,
+  resolveTitle,
+  filterSessions,
+  formatDuration,
+  formatDate,
+  generateFilename,
+  uniqueFilename,
+  discoverSessions,
+} from "../src/picker.mjs";
 
 // ---------------------------------------------------------------------------
 // Shared helper
@@ -279,6 +283,14 @@ describe("filterSessions", () => {
     const sessions = makeSessions([{ messageCount: 1 }, { messageCount: 10 }]);
     const result = filterSessions(sessions);
     assert.equal(result.totalBeforeFilter, 2);
+  });
+
+  it("keeps sessions with skip-pattern summary if customTitle is set", () => {
+    const sessions = makeSessions([
+      { summary: "User Exited Claude Code Session", customTitle: "My Named Session" },
+    ]);
+    const result = filterSessions(sessions);
+    assert.equal(result.length, 1);
   });
 });
 

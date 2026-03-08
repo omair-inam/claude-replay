@@ -198,7 +198,7 @@ export function filterSessions(sessions) {
   const total = sessions.length;
   const filtered = sessions.filter((s) => {
     if ((s.messageCount ?? 0) <= 2) return false;
-    if (s.summary && SKIP_SUMMARY_PATTERNS.some((p) => p.test(s.summary))) return false;
+    if (!s.customTitle && s.summary && SKIP_SUMMARY_PATTERNS.some((p) => p.test(s.summary))) return false;
     return true;
   });
   filtered.totalBeforeFilter = total;
