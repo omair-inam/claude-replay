@@ -5,8 +5,8 @@
  */
 
 import { parseArgs } from "node:util";
-import { basename, dirname } from "node:path";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
+import { existsSync, readFileSync, writeFileSync, statSync, mkdirSync } from "node:fs";
 import { parseTranscript, filterTurns, detectFormat, applyPacedTiming } from "../src/parser.mjs";
 import { render } from "../src/renderer.mjs";
 import { getTheme, loadThemeFile, listThemes } from "../src/themes.mjs";
@@ -31,6 +31,8 @@ const options = {
   bookmarks: { type: "string" },
   "no-minify": { type: "boolean", default: false },
   "no-compress": { type: "boolean", default: false },
+  "filename-prefix": { type: "string", default: "" },
+  meta: { type: "boolean", default: false },
   help: { type: "boolean", short: "h", default: false },
 };
 
@@ -51,7 +53,7 @@ Convert Claude Code session transcripts into embeddable HTML replays.
 Run with no arguments to launch an interactive session picker.
 
 Options:
-  -o, --output FILE       Output HTML file (default: stdout)
+  -o, --output FILE|DIR   Output HTML file, or directory when using picker (default: stdout)
   --turns N-M             Only include turns N through M
   --from TIMESTAMP        Start time filter (ISO 8601)
   --to TIMESTAMP          End time filter (ISO 8601)
@@ -70,6 +72,8 @@ Options:
   --no-minify             Use unminified template (default: minified if available)
   --no-compress           Embed raw JSON instead of compressed (for older browsers)
   --list-themes           List available built-in themes and exit
+  --filename-prefix STR   Prefix for auto-generated filenames (picker only, default: none)
+  --meta                  Write a .meta.json sidecar with session metadata (picker only)
   -h, --help              Show this help message`);
   process.exit(0);
 }
@@ -82,6 +86,7 @@ if (values["list-themes"]) {
 }
 
 let inputFile = positionals[0];
+let pickerMeta = null;
 if (!inputFile) {
   if (!process.stdin.isTTY) {
     console.error("Error: input file is required. Usage: claude-replay <input.jsonl> [options]");
@@ -104,13 +109,38 @@ if (!inputFile) {
 
   inputFile = picked.fullPath;
 
-  // Auto-generate output filename if -o not specified
-  if (!values.output) {
-    const datePrefix = picked.modified
-      ? new Date(picked.modified).toISOString().slice(0, 10)
-      : new Date().toISOString().slice(0, 10);
-    values.output = uniqueFilename(generateFilename(picked.title, datePrefix));
+  // Auto-generate output filename
+  const datePrefix = picked.modified
+    ? new Date(picked.modified).toISOString().slice(0, 10)
+    : new Date().toISOString().slice(0, 10);
+  const prefix = values["filename-prefix"];
+  const generatedName = generateFilename(picked.title, datePrefix, prefix);
+
+  if (values.output) {
+    // If -o is a directory, write into it with the generated filename
+    let isDir = false;
+    try {
+      isDir = statSync(values.output).isDirectory();
+    } catch {
+      isDir = values.output.endsWith("/");
+    }
+    if (isDir) {
+      if (!existsSync(values.output)) {
+        mkdirSync(values.output, { recursive: true });
+      }
+      values.output = uniqueFilename(join(values.output, generatedName));
+    }
+  } else {
+    values.output = uniqueFilename(generatedName);
   }
+
+  pickerMeta = {
+    filename: basename(values.output),
+    title: picked.title || basename(values.output, ".html"),
+    date: picked.modified || new Date().toISOString(),
+    messageCount: picked.messageCount ?? 0,
+    project: projectName,
+  };
 }
 
 if (!existsSync(inputFile)) {
@@ -262,6 +292,16 @@ const html = render(turns, {
 if (values.output) {
   writeFileSync(values.output, html);
   console.error(`Wrote ${values.output} (${turns.length} turns)`);
+
+  // Write sidecar metadata if requested (picker only)
+  if (values.meta && !pickerMeta) {
+    console.error("Warning: --meta only works with the interactive picker");
+  }
+  if (values.meta && pickerMeta) {
+    const metaPath = values.output.replace(/\.html$/, ".meta.json");
+    writeFileSync(metaPath, JSON.stringify(pickerMeta, null, 2) + "\n");
+    console.error(`Wrote ${metaPath}`);
+  }
 } else {
   process.stdout.write(html);
 }
